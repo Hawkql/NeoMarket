@@ -1,0 +1,36 @@
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using MediatR;
+using FluentValidation;
+namespace B2B.Application.common.Behaviors
+{
+    public class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
+        where TRequest : notnull
+    {
+        private readonly IEnumerable<IValidator<TRequest>> _validators;
+        public ValidationBehavior(IEnumerable<IValidator<TRequest>> validators)
+        {
+            _validators = validators;
+        }
+        public async Task<TResponse> Handle(TRequest 
+            request, RequestHandlerDelegate<TResponse> next,
+            CancellationToken ct)
+        {
+            if(!_validators.Any())
+                return await next();
+
+            var contex = new ValidationContext<TRequest>(request);
+            var failures = (await Task.WhenAll(_validators.Select(v=>v.ValidateAsync(contex,ct))))
+                .Select(r=>r.Errors)
+                .Where(f=>f!=null)
+                .ToList();
+            if(failures.Any())
+                throw new ValidationException(failures);
+            return await next();
+        }
+    }
+}
