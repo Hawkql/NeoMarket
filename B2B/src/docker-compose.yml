@@ -4,8 +4,8 @@ services:
     image: postgres:16-alpine
     container_name: neomarket-postgres
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: 123456789
       POSTGRES_DB: b2b
     ports:
       - "5432:5432"
@@ -72,7 +72,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=b2b;Username=postgres;Password=postgres"
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=b2b;Username=user;Password=123456789"
       Kafka__BootstrapServers: "kafka:29092"
 
 volumes:

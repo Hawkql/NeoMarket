@@ -15,7 +15,7 @@ namespace B2B.Domain.Invoices
 
         public Guid SellerId { get; private set; }
         public string Number { get; private set; } = null!;
-        public InvoiceStatus InvoiceStatus { get; private set; } 
+        public InvoiceStatus Status { get; private set; } 
         public DateTime CreateAt { get; private set; }
         public DateTime AcceptedAt { get; private set; }
         public IReadOnlyList<InvoiceLine> Lines=>_lines.AsReadOnly();
@@ -27,13 +27,13 @@ namespace B2B.Domain.Invoices
             {
                 SellerId = sellerId,
                 Number = number,
-                InvoiceStatus = InvoiceStatus.Draft,
-                CreateAt = DateTime.Now,
+                Status = InvoiceStatus.Draft,
+                CreateAt = DateTime.UtcNow,
             };
         }
         public void AddLine(Guid skuId, int quantity,decimal cost)
         {
-            if(InvoiceStatus!=InvoiceStatus.Draft)
+            if(Status!=InvoiceStatus.Draft)
                 throw new DomainException("Cannot modify accepted invoice");
             if(quantity <= 0)
                 throw new DomainException("Quantity must be positive");
@@ -49,12 +49,12 @@ namespace B2B.Domain.Invoices
         }
         public void Accept()
         {
-            if(InvoiceStatus != InvoiceStatus.Draft)
+            if(Status != InvoiceStatus.Draft)
                 throw new DomainException("Only draft invoices can be accepted");
             if(!_lines.Any())
                 throw new DomainException("Cannot accept empty invoice");
-            InvoiceStatus=InvoiceStatus.Accepted;
-            AcceptedAt =DateTime.Now;
+            Status=InvoiceStatus.Accepted;
+            AcceptedAt =DateTime.UtcNow;
             AddDomainEvent(new InvoiceAcceptedEvent(
                 Id, SellerId, _lines.Select(l => new AcceptedLine(l.SkuId, l.Quantity)).ToList()));
                 

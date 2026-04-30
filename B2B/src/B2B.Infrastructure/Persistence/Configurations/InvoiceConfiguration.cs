@@ -23,7 +23,7 @@ namespace B2B.Infrastructure.Persistence.Configurations
                 .HasMaxLength(50)
                 .IsRequired();
 
-            builder.Property(i => i.InvoiceStatus)
+            builder.Property(i => i.Status)
                 .HasConversion<int>()
                 .IsRequired();
 

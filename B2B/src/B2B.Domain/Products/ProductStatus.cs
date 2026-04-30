@@ -12,5 +12,6 @@ namespace B2B.Domain.Products
         OnModeration = 1,
         Moderation = 2,
         Blocked = 3,
+        Moderated = 4,
     }
 }

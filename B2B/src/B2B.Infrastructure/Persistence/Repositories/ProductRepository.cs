@@ -20,13 +20,15 @@ namespace B2B.Infrastructure.Persistence.Repositories
             await _db.AddAsync(product, ct);
         }
 
-        public async Task<Product?> GetByIdProduct(Guid id, CancellationToken ct)
-        {
-             return await _db.Products
-                .Include(p => p.Skus).ThenInclude(s=>s.Characteristics)
-                .Include(i=>i.Images)
-                .FirstOrDefaultAsync(p=>p.Id == id,ct);
-        }
+        
+        // B2B.Infrastructure/Persistence/Repositories/ProductRepository.cs
+        public Task<Product?> GetByIdProduct(Guid id, CancellationToken ct) =>
+            _db.Products
+                .Include(p => p.Skus)
+                    .ThenInclude(s => s.Characteristics)   // ← характеристики SKU
+                .Include(p => p.Images)
+                .Include(p => p.Characteristics)            // ← характеристики Product
+                .FirstOrDefaultAsync(p => p.Id == id, ct);
 
         public void Update(Product product)=>_db.Products.Update(product);
         public Task<Product?> GetByIdSkuIdAsync(Guid skuId, CancellationToken ct) =>
