@@ -72,7 +72,7 @@ namespace B2B.Domain.Products
             var newCharSet = characteristics.Select(c => $"{c.Name}={c.Value}").OrderBy(x => x);
             foreach (var existingSku in _skus)
             {
-                var existingCharSet = existingSku._characteristics
+                var existingCharSet = existingSku.Characteristics
                     .Select(c => $"{c.Name}={c.Value}").OrderBy(x => x);
                 if (existingCharSet.SequenceEqual(newCharSet))
                     throw new DomainException("SKU with same characteristics already exists");

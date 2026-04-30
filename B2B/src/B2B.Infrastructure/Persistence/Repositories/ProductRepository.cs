@@ -22,14 +22,14 @@ namespace B2B.Infrastructure.Persistence.Repositories
 
         public async Task<Product?> GetByIdProduct(Guid id, CancellationToken ct)
         {
-             return await _db.products
+             return await _db.Products
                 .Include(p => p.Skus).ThenInclude(s=>s.Characteristics)
                 .Include(i=>i.Images)
                 .FirstOrDefaultAsync(p=>p.Id == id,ct);
         }
 
-        public void Update(Product product)=>_db.products.Update(product);
+        public void Update(Product product)=>_db.Products.Update(product);
         public Task<Product?> GetByIdSkuIdAsync(Guid skuId, CancellationToken ct) =>
-            _db.products.Include(p => p.Skus).FirstOrDefaultAsync(p => p.Skus.Any(s => s.Id == skuId),ct);
+            _db.Products.Include(p => p.Skus).FirstOrDefaultAsync(p => p.Skus.Any(s => s.Id == skuId),ct);
     }
 }

@@ -9,7 +9,7 @@ using MediatR;
 namespace B2B.Application.Invoices.commands.CreateInvoices
 {
     public record CreateInvoiceCommand(Guid SellerId,
-             string Number, List<InvoiceLine> Lines) : IRequest<Guid>
+             string Number, List<InvoiceLineDto> Lines) : IRequest<Guid>
     { }
    
     public record InvoiceLineDto(Guid SkuId, int Quantity, decimal Cost);

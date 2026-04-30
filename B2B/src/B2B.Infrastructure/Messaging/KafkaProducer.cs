@@ -9,11 +9,11 @@ using Microsoft.Extensions.Logging;
 
 namespace B2B.Infrastructure.Messaging
 {
-    public interface IkafkaProducer
+    public interface IKafkaProducer
     {
         Task ProduceAsync(string topic, string key, string payload,Headers headers, CancellationToken ct);
     }
-    public class KafkaProducer : IkafkaProducer ,IDisposable
+    public class KafkaProducer : IKafkaProducer ,IDisposable
     {
         private readonly IProducer<string, string> _producer;
         private readonly ILogger<KafkaProducer> _logger;

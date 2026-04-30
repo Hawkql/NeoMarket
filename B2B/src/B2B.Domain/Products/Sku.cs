@@ -14,7 +14,7 @@ namespace B2B.Domain.Products
 
 
         public Guid ProductId { get; private set; }
-        public string Name { get; private set; } = null;
+        public string Name { get; private set; } = null!;
         public decimal Price { get; private set; } = 0;
         public int Quantity { get; private set; }
 

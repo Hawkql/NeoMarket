@@ -21,11 +21,11 @@ namespace B2B.Infrastructure.Messaging
     }
     public class IntegrationEventPublisher : IIntegrationEventPublisher
     {
-        private readonly IkafkaProducer _producer;
+        private readonly IKafkaProducer _producer;
         private readonly ILogger<IntegrationEventPublisher> _logger;
         private static readonly JsonSerializerOptions jsonSerializerOptions = new();
 
-        public IntegrationEventPublisher(IkafkaProducer producer, ILogger<IntegrationEventPublisher> logger)
+        public IntegrationEventPublisher(IKafkaProducer producer, ILogger<IntegrationEventPublisher> logger)
         {
             _producer = producer;
              _logger = logger;

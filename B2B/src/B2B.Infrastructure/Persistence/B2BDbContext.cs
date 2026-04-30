@@ -14,8 +14,8 @@ namespace B2B.Infrastructure.Persistence
 {
     public class B2BDbContext :DbContext
     {
-        public DbSet<Product>products => Set<Product>();
-        public DbSet<Invoice>invoices => Set<Invoice>();
+        public DbSet<Product>Products => Set<Product>();
+        public DbSet<Invoice>Invoices => Set<Invoice>();
         public DbSet<OutboxMessage> OutboxMessage => Set<OutboxMessage>();
 
         public B2BDbContext(DbContextOptions<B2BDbContext> options) : base(options) { }

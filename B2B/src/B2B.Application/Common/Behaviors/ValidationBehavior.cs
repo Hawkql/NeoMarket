@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿
 using MediatR;
 using FluentValidation;
 namespace B2B.Application.common.Behaviors
@@ -20,15 +15,14 @@ namespace B2B.Application.common.Behaviors
             request, RequestHandlerDelegate<TResponse> next,
             CancellationToken ct)
         {
-            if(!_validators.Any())
-                return await next();
+            if (!_validators.Any()) return await next();
 
             var contex = new ValidationContext<TRequest>(request);
             var failures = (await Task.WhenAll(_validators.Select(v=>v.ValidateAsync(contex,ct))))
-                .Select(r=>r.Errors)
+                .SelectMany(r=>r.Errors)
                 .Where(f=>f!=null)
                 .ToList();
-            if(failures.Any())
+            if (failures.Any())
                 throw new ValidationException(failures);
             return await next();
         }

@@ -52,4 +52,4 @@ namespace B2B.Api.Grpc
         }
     }
 }
-}
+
