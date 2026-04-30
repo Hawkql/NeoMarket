@@ -7,5 +7,5 @@ using B2B.Domain.Common;
 
 namespace B2B.Domain.Products.Events
 {
-    public record ProductCreatedEvent(Guid productId,Guid SellerId):DomainEvent;
+    public record ProductCreatedEvent(Guid ProductId,Guid SellerId):DomainEvent;
 }

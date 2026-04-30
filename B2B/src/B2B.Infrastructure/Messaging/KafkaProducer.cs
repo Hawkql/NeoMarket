@@ -4,33 +4,51 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Confluent.Kafka;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace B2B.Infrastructure.Messaging
 {
     public interface IkafkaProducer
     {
-        Task ProduceAsync(string topic, string key, string payload, CancellationToken ct);
+        Task ProduceAsync(string topic, string key, string payload,Headers headers, CancellationToken ct);
     }
     public class KafkaProducer : IkafkaProducer ,IDisposable
     {
         private readonly IProducer<string, string> _producer;
+        private readonly ILogger<KafkaProducer> _logger;
 
-        public KafkaProducer(string bootstrapServers)
+        public KafkaProducer(IConfiguration config, ILogger<KafkaProducer> logger)
         {
-            var confic = new ProducerConfig
+            _logger= logger;
+            var Producerconfig = new ProducerConfig
             {
-                BootstrapServers = bootstrapServers,
+                BootstrapServers = config["Kafka:BootstrapServers"]
+                ?? throw new InvalidOperationException("Kafka:BootstrapServers not configured"),
                 Acks = Acks.All,
                 EnableIdempotence = true,
                 CompressionType = CompressionType.Snappy,
-                LingerMs = 5
+                LingerMs = 5,
+                MessageSendMaxRetries = 5,
+                RetryBackoffMaxMs = 5,
+                
             };
-            _producer = new ProducerBuilder<string, string>(confic).Build();
+            _producer = new ProducerBuilder<string, string>(Producerconfig)
+                .SetErrorHandler((_,e)=>
+                    _logger.LogError("Kafka producer error: {Reason}", e.Reason))
+                .Build();
             
         }
-        public async Task ProduceAsync(string topic, string key, string payload, CancellationToken ct)
+        public async Task ProduceAsync(string topic, string key, string payload,Headers headers, CancellationToken ct)
         {
-            await _producer.ProduceAsync(topic,new Message<string, string>{ Key=key,Value=payload},ct); 
+            var message = new Message<string, string>
+            {
+                Key = key,
+                Value = payload,
+                Headers = headers
+
+            };
+            await _producer.ProduceAsync(topic,message, ct);
         }
         public void Dispose()
         {

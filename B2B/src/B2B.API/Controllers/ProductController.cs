@@ -1,4 +1,5 @@
 ﻿using B2B.Application.Products.Commands.CreateProduct;
+using B2B.Application.Products.Queries.GetProductById;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 
@@ -33,5 +34,5 @@ namespace B2B.Api.Controllers
         string Description,
         Guid CategoryId,
         Guid SellerId,
-        List<CharacteristicDto> Characteristics);
+        List<Application.Products.Commands.CreateProduct.CharacteristicDto> Characteristics);
 }

@@ -1,4 +1,5 @@
-﻿using Google.Protobuf.Collections;
+﻿using B2B.Application.Products.Queries.GetProductById;
+using Google.Protobuf.Collections;
 using Grpc.Core;
 using MediatR;
 
