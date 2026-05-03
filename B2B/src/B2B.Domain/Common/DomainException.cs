@@ -8,7 +8,8 @@ namespace B2B.Domain.Common
 {
     public class DomainException : Exception
     {
-        public DomainException(string? message) : base(message) { }
+        public string Code { get; }
+        public DomainException(string? message, string code = "DOMAIN_ERROR") : base(message) { Code = code; }
 
     }
 }

@@ -6,10 +6,15 @@ using System.Threading.Tasks;
 
 namespace B2B.Domain.Common
 {
-    public abstract class AggregateRoot<TId> : Entity<TId>
+    public abstract class AggregateRoot<TId> : Entity<TId> where TId : struct
     {
         private readonly List<DomainEvent> _domainEvents = new();
         public IReadOnlyList<DomainEvent> DomainEvents => _domainEvents.AsReadOnly();
+
+        protected AggregateRoot() { }
+
+        protected AggregateRoot(TId id) : base(id) { }
+
 
 
         protected void AddDomainEvent(DomainEvent domainEvent)

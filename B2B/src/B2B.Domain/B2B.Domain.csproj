@@ -10,4 +10,10 @@
     <PackageReference Include="MediatR" Version="12.4.1" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Categories\Events\" />
+    <Folder Include="Images\" />
+    <Folder Include="Skus\Events\" />
+  </ItemGroup>
+
 </Project>
