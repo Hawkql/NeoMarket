@@ -236,7 +236,5 @@ namespace B2B.Domain.Products
             if (description.Length > 5000)
                 throw new DomainException("description must be 1-5000 characters", "INVALID_REQUEST");
         }
-        private static string GenerateSlug(string title) =>
-            title.ToLowerInvariant().Replace(" ", "-");
     }
 }

@@ -10,7 +10,7 @@ namespace B2B.Domain.Products
     {
         Created = 0,
         OnModeration = 1,
-        Moderation = 2,
+        Moderated = 2,
         Blocked = 3,
         HardBlocked = 4,
     }

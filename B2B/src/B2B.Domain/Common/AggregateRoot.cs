@@ -17,7 +17,7 @@ namespace B2B.Domain.Common
 
 
 
-        protected void AddDomainEvent(DomainEvent domainEvent)
+        protected void RaiseDomainEvent(DomainEvent domainEvent)
         {
             _domainEvents.Add(domainEvent);
         }

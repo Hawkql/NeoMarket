@@ -6,7 +6,11 @@ using System.Threading.Tasks;
 
 namespace B2B.Domain.Products.Events
 {
-    internal class ModerationReason
+    public  enum ModerationReason
     {
+        /// <summary>Первый SKU добавлен у CREATED товара.</summary>
+        FirstSkuAdded,
+        /// <summary>Товар отредактирован после одобрения/блокировки.</summary>
+        Edited
     }
 }

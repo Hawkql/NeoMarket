@@ -7,7 +7,6 @@ using B2B.Domain.Common;
 
 namespace B2B.Domain.Products.Events
 {
-    public sealed record ProductApproveEvent(Guid Id):DomainEvent
-    {
-    }
+    public sealed record ProductApproveEvent(Guid Id):DomainEvent;
+
 }
