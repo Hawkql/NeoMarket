@@ -47,6 +47,69 @@ namespace B2B.Domain.Categories
             category.RaiseDomainEvent(new CategoryCreatedEvent(category.Id, category.ParentId, category.Name));
             return category;
         }
+        public void Rename(string newName)
+        {
+            EnsureNotDeleted();
+            ValidName(newName);
+            if (Name == newName)
+                return;
+            var oldname = Name;
+            Name = newName;
+            RaiseDomainEvent(new CategoryRenamedEvent(Id, oldname, Name));
+        }
+        ///<summary>
+        ///Перемещение категории в дереве.
+        /// </summary>
+        public void MoveTo(Guid? NewParentId)
+        {
+            EnsureNotDeleted();
+
+            if(NewParentId == Id)
+                throw new DomainException(
+                "Category cannot be its own parent",
+                "INVALID_REQUEST");
+
+            if(ParentId== NewParentId)
+                return;
+
+            var oldparentId = ParentId;
+            ParentId = NewParentId;
+            RaiseDomainEvent(new CategoryMovedEvent(Id, oldparentId, NewParentId));
+        }
+
+        public void Reorder(int newOrdering)
+        {
+            EnsureNotDeleted();
+            if(newOrdering<0)
+                throw new DomainException("Ordering must be >= 0", "INVALID_REQUEST");
+            Ordering = newOrdering;
+            // Нет специального события — Ui
+        }
+        /// <summary>
+        /// Soft delete. Проверка "нет привязанных товаров" — ответственность
+        /// Application Handler (требует Query к Products).
+        /// </summary>
+        public void MarkAsDeleted()
+        {
+            if(Deleted)
+                throw new DomainException("Category already deleted", "INVALID_REQUEST");
+            Deleted = true;
+            RaiseDomainEvent(new CategoryDeletedEvent(Id));
+        }
+        public void Restore()
+        {
+            if (!Deleted)
+                throw new DomainException("Category is not deleted", "INVALID_REQUEST");
+
+            Deleted = false;
+            // Нет специального события — это admin-операция
+        }
+        private void EnsureNotDeleted()
+        {
+            if(Deleted)
+                throw new DomainException(
+                    "Cannot modify deleted category", "FORBIDDEN");
+        }
         private void ValidName(string name)
         {
             if(string.IsNullOrWhiteSpace(name))

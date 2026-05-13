@@ -7,9 +7,14 @@ using B2B.Domain.Common;
 
 namespace B2B.Domain.Invoices.Events
 {
-    public record AcceptedLine(Guid SkuId, int Quantity);
-    public record InvoiceAcceptedEvent(Guid InvoiceId,
-        Guid SellerId,
-        IReadOnlyList<AcceptedLine>Lines):DomainEvent;
-
+    public sealed record InvoiceAcceptedLine(Guid SkuId, int AcceptedQuantity);
+    /// <summary>
+    /// Накладная принята (полностью или частично).
+    /// Это событие триггерит integration event на изменение остатков.
+    /// </summary>
+    public sealed record InvoiceAcceptedEvent(
+     Guid InvoiceId,
+     Guid SellerId,
+     InvoiceStatus FinalStatus,
+     IReadOnlyCollection<InvoiceAcceptedLine> AcceptedLines) : DomainEvent;
 }
