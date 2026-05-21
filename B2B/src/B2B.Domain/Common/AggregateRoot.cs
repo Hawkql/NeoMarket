@@ -19,6 +19,8 @@ namespace B2B.Domain.Common
 
         protected void RaiseDomainEvent(DomainEvent domainEvent)
         {
+            if (domainEvent is null)
+                throw new ArgumentNullException(nameof(domainEvent));
             _domainEvents.Add(domainEvent);
         }
         public void ClearDomainEvents()=>_domainEvents.Clear();

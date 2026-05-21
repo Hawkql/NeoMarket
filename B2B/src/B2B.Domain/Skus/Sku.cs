@@ -23,15 +23,14 @@ namespace B2B.Domain.Skus
         public bool Deleted { get; private set; }
         public IReadOnlyCollection<SkuCharacteristic> Characteristics =>_characteristics.AsReadOnly();
 
-        public DateTime CreateAt { get ; set ; }
-        public DateTime UpdateAt { get ; set ; }
+        public DateTime CreatedAt { get ; set ; }
+        public DateTime UpdatedAt { get ; set ; }
         public Sku() { }
 
         public Sku(Guid id, Guid productId, 
             string name, int price,
-            int costPrice, int discount, string imageUrl)
+            int costPrice, int discount, string imageUrl):base(id)
         {
-            Id = id;
             ProductId = productId;
             Name = name;
             Price = price;

@@ -17,13 +17,15 @@ namespace B2B.Application
         {
             var assembly = Assembly.GetExecutingAssembly();
 
+            // MediatR — регистрирует все Command/Query Handlers из сборки
             services.AddMediatR(cfg =>
             {
                 cfg.RegisterServicesFromAssembly(assembly);
-                cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
-                cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+                // ValidationBehavior встраивается в pipeline ПЕРЕД handlers
+                cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));
             });
 
+            // FluentValidation — регистрирует все валидаторы из сборки
             services.AddValidatorsFromAssembly(assembly);
 
             return services;

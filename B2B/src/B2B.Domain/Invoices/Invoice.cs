@@ -20,7 +20,7 @@ namespace B2B.Domain.Invoices
         /// <summary>Время приёмки. null пока не принята.</summary>
         public DateTime? AcceptedAt { get; private set; }
 
-        public IReadOnlyList<InvoiceItem> Lines=>_items.AsReadOnly();
+        public IReadOnlyList<InvoiceItem> Items => _items.AsReadOnly();
 
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }

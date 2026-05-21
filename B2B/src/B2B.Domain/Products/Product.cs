@@ -32,7 +32,7 @@ namespace B2B.Domain.Products
         public bool Blocked => Status is ProductStatus.Blocked or ProductStatus.HardBlocked;
 
         public BlockingReason? BlockingReason { get; private set; }
-        public IReadOnlyCollection<FieldReport> fieldReports => _fieldReports.AsReadOnly();
+        public IReadOnlyCollection<FieldReport> FieldReports => _fieldReports.AsReadOnly();
 
         /// <summary>
         /// Номер текущего раунда модерации. 0 — товар никогда не был на модерации.
@@ -46,7 +46,7 @@ namespace B2B.Domain.Products
 
         private Product() { }
         private Product(Guid id, Guid sellerId, Guid categoryId,
-        string title, string description)
+        string title, string description) : base(id)
         {
 
             Title = title;
@@ -59,8 +59,8 @@ namespace B2B.Domain.Products
         }
 
         public static Product Create(
-            Guid categoryId,
             Guid sellerId,
+             Guid categoryId,
             string title,
             string description,
             IEnumerable<ProductCharacteristic>? characteristics = null
@@ -162,7 +162,7 @@ namespace B2B.Domain.Products
                 throw new DomainException($"Cannot approve product in status {Status}");
             Status = ProductStatus.Moderated;
             BlockingReason = null;
-            RaiseDomainEvent(new ProductApproveEvent(Id));
+            RaiseDomainEvent(new ProductApprovedEvent(Id));
         }
         /// <summary>
         /// ON_MODERATION → BLOCKED. Мягкая блокировка с возможностью исправить.
@@ -197,9 +197,10 @@ namespace B2B.Domain.Products
                 throw new DomainException("Product is already hard-blocked", "INVALID_REQUEST");
             if (reason is null)
                 throw new DomainException("BlockingReason is required", "INVALID_REQUEST");
-            Status= ProductStatus.HardBlocked;
-            BlockingReason =reason;
+            Status = ProductStatus.HardBlocked;
+            BlockingReason = reason;
             AddFieldReports(reports, now);
+            RaiseDomainEvent(new ProductHardBlockedEvent(Id, skuIds.ToList()));
         }
         public void MarkAsDeleted(IEnumerable<Guid> skuIds)
         {
@@ -211,7 +212,7 @@ namespace B2B.Domain.Products
 
         private void AddFieldReports(IEnumerable<(FieldReportTarget Field, Guid? SkuId, string Comment)> reports, DateTime now)
         {
-            foreach(var (field,skuId,comment) in reports)
+            foreach (var (field, skuId, comment) in reports)
             {
                 var report = new FieldReport(
                 Guid.NewGuid(),

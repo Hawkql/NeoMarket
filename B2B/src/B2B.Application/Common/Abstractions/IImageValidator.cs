@@ -18,14 +18,14 @@ namespace B2B.Application.Common.Abstractions
       /// 
       /// Возвращает ValidationResult — успех с метаданными ИЛИ ошибку с кодом.
       /// </summary>
-        Task<ImageValidatorResult> ValidateAsync(Stream content, string declaredContentType, CancellationToken ct);
+        Task<ImageValidationResult> ValidateAsync(Stream content, string declaredContentType, CancellationToken ct);
 
     }
 
-    public sealed record ImageValidatorResult(bool IsValid,
+    public sealed record ImageValidationResult(bool IsValid,
         string? ErrorCode,
         string? ErrorMessage,
-        string? Extention
+        string? Extension
         );
 
 }

@@ -7,6 +7,6 @@ using B2B.Domain.Common;
 
 namespace B2B.Domain.Products.Events
 {
-    public sealed record ProductDeletedEvent(Guid Id, Guid SellerId,IReadOnlyCollection<Guid> skuIds):DomainEvent;
+    public sealed record ProductDeletedEvent(Guid Id, Guid SellerId,IReadOnlyCollection<Guid> SkuIds):DomainEvent;
 
 }

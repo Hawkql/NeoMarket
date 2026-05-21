@@ -20,8 +20,8 @@ namespace B2B.Domain.Images
         public string Url { get; private set; } = null!;
         public ImageEntityType EntityType { get; private set; }
 
-        public DateTime CreateAt { get; set; }
-        public DateTime UpdateAt { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public DateTime UpdatedAt { get; set; }
         private Image(Guid id,ImageEntityType entityType,Guid entityId,string url,int ordering):base(id)
         {
             EntityType = entityType;
@@ -47,17 +47,7 @@ namespace B2B.Domain.Images
             image.RaiseDomainEvent(new ImageCreatedEvent(image.Id, entityType, entityId, url));
             return image ;
         }
-        /// Изменение порядка отображения. Url, EntityType, EntityId — иммутабельны.
-        public void Reordering(int newOrdering)
-        {
-            if(newOrdering<0)
-                throw new DomainException("Ordering must be >= 0", "INVALID_REQUEST");
-            if (newOrdering == Ordering)
-                return;
-
-            Ordering=newOrdering;
-            RaiseDomainEvent(new ImageReorderdEvent(Id,newOrdering));
-        }
+       
         /// Помечаем намерение удалить (через RaiseDomainEvent).
         public void MarkAsDeleted()
         {

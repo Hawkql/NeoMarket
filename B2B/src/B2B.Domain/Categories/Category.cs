@@ -22,11 +22,11 @@ namespace B2B.Domain.Categories
         /// <summary>Порядок сортировки внутри одного уровня. 0 = первая.</summary>
         public int Ordering {  get; private set; }
         public bool Deleted { get; private set; }
-        DateTime IAuditableEntity.CreateAt { get ; set ; }
-        DateTime IAuditableEntity.UpdateAt { get ; set ; }
+        DateTime IAuditableEntity.CreatedAt { get ; set ; }
+        DateTime IAuditableEntity.UpdatedAt { get ; set ; }
 
-        public DateTime CreateAt;
-        public DateTime UpdateAt;
+        public DateTime CreatedAt;
+        public DateTime UpdatedAt;
 
         public Category() { }
         private Category(Guid id,Guid? parentId,string name,int ordering):base(id) 
@@ -38,10 +38,10 @@ namespace B2B.Domain.Categories
              
         }
 
-        public Category Create(Guid? parentId, string name, int ordering)
+        public static Category Create(Guid? parentId, string name, int ordering)
         {
             ValidName(name);
-            if (Ordering < 0)
+            if (ordering < 0)
                 throw new DomainException("Ordering must be >= 0", "INVALID_REQUEST");
             var category = new Category(Guid.NewGuid(),parentId,name,ordering);
             category.RaiseDomainEvent(new CategoryCreatedEvent(category.Id, category.ParentId, category.Name));
@@ -110,7 +110,7 @@ namespace B2B.Domain.Categories
                 throw new DomainException(
                     "Cannot modify deleted category", "FORBIDDEN");
         }
-        private void ValidName(string name)
+        private static void ValidName(string name)
         {
             if(string.IsNullOrWhiteSpace(name))
                 throw new DomainException("Category name is required", "INVALID_REQUEST");

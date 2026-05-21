@@ -17,54 +17,59 @@ namespace B2B.Infrastructure.Persistence.Configurations
 
             builder.HasKey(i => i.Id);
 
-            builder.Property(i => i.SellerId).IsRequired();
-
-            builder.Property(i => i.Number)
-                .HasMaxLength(50)
+            builder.Property(i => i.SellerId)
+                .HasColumnName("seller_id")
                 .IsRequired();
+
+
 
             builder.Property(i => i.Status)
-                .HasConversion<int>()
+                .HasColumnName("status")
+                .HasConversion<string>()
+                .HasMaxLength(30)
                 .IsRequired();
 
-            builder.Property(i => i.CreateAt).IsRequired();
-            builder.Property(i => i.AcceptedAt);
+            builder.Property(i => i.AcceptedAt)
+                .HasColumnName("accepted_at")
+                .HasColumnType("timestamptz");
+            builder.Property(i => i.CreatedAt)
+                .HasColumnName("created_at")
+                .HasColumnType("timestamptz")
+                .IsRequired();
+            builder.Property(i => i.UpdatedAt)
+            .HasColumnName("updated_at")
+            .HasColumnType("timestamptz")
+            .IsRequired();
 
             // НЕ сохраняем DomainEvents — это transient
             builder.Ignore(i => i.DomainEvents);
 
             // Связь с InvoiceLine (строки накладной)
-            builder.HasMany(i => i.Lines)
-                .WithOne()
-                .HasForeignKey(l => l.InvoiceId)
-                .OnDelete(DeleteBehavior.Cascade);
+            builder.HasMany(i => i.Items)
+                 .WithOne()
+                 .HasForeignKey(item => item.InvoiceId)
+                 .OnDelete(DeleteBehavior.Cascade);
 
-            // Указываем, что Lines заполняется через backing field _lines
-            builder.Metadata
-                .FindNavigation(nameof(Invoice.Lines))!
-                .SetPropertyAccessMode(PropertyAccessMode.Field);
+            // Указываем, что Lines заполняется через backing field _item
+            builder.Navigation(i => i.Items)
+                .UsePropertyAccessMode(PropertyAccessMode.Field);
 
-            // Индекс по продавцу — продавец часто запрашивает свои накладные
-            builder.HasIndex(i => i.SellerId)
-                .HasDatabaseName("ix_invoices_seller_id");
-        }
-    }
+            builder.HasIndex(i => new { i.SellerId, i.Status, i.CreatedAt })
+            .HasDatabaseName("ix_invoices_seller_status_created");
 
-    internal class InvoiceLineConfiguration : IEntityTypeConfiguration<InvoiceLine>
-    {
-        public void Configure(EntityTypeBuilder<InvoiceLine> builder)
-        {
-            builder.ToTable("invoice_lines");
+            // Накладные в статусе PENDING (для очереди оператора склада)
+            builder.HasIndex(i => i.Status)
+                .HasDatabaseName("ix_invoices_status_pending")
+                .HasFilter("status = 'Pending'");
 
-            builder.HasKey(l => l.Id);
-
-            builder.Property(l => l.InvoiceId).IsRequired();
-            builder.Property(l => l.SkuId).IsRequired();
-            builder.Property(l => l.Quantity).IsRequired();
-
-            builder.Property(l => l.Cost)
-                .HasPrecision(18, 2)
-                .IsRequired();
+            builder.ToTable(t =>
+            {
+                // Если статус не Pending — обязательно accepted_at должен быть заполнен
+                t.HasCheckConstraint(
+                    "ck_invoices_accepted_at_consistency",
+                    "(status = 'Pending' AND accepted_at IS NULL) OR " +
+                    "(status <> 'Pending' AND accepted_at IS NOT NULL)");
+            });
         }
     }
 }

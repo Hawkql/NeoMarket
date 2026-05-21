@@ -9,93 +9,141 @@ internal class ProductConfiguration : IEntityTypeConfiguration<Product>
 {
     public void Configure(EntityTypeBuilder<Product> builder)
     {
-        builder.ToTable("products");
+        builder.ToTable("product");
         builder.HasKey(p => p.Id);
 
-        builder.Property(p => p.Title).HasMaxLength(255).IsRequired();
-        builder.Property(p => p.Description).HasMaxLength(5000);
-        builder.Property(p => p.Slug).HasMaxLength(255).IsRequired();
-        builder.Property(p => p.CategoryId).IsRequired();
-        builder.Property(p => p.SellerId).IsRequired();
-        builder.Property(p => p.Status).HasConversion<int>().IsRequired();
+
+        //говорим что мы сами генерируем guid, чтобы не пытался
+        builder.Property(p=>p.Id)
+            .HasColumnName("id")
+            .ValueGeneratedNever();
+
+        // ОСНОВНЫЕ ПОЛЯ
+
+        builder.Property(p => p.SellerId)
+            .HasColumnName("seller_id")
+            .IsRequired();
+        builder.Property(p=>p.CategoryId)
+            .HasColumnName("category_id")
+            .IsRequired();
+
+        builder.Property(p => p.Title)
+            .HasColumnName("title")
+            .IsRequired()
+            .HasMaxLength(255);
+
+        builder.Property(p => p.Description)
+            .HasColumnName("description")
+            .IsRequired()
+            .HasMaxLength(5000);
+
+        builder.Property(p => p.Status)
+            .HasColumnName("status")
+            .HasConversion<string>()
+            .HasMaxLength(20)
+            .IsRequired();
+
+        builder.Property(p=>p.Deleted)
+            .HasColumnName("deleted")
+            .IsRequired().
+            HasDefaultValue(false);
+
+        builder.Property(p => p.ModerationRound)
+            .HasColumnName("moderation_round")
+            .IsRequired()
+            .HasDefaultValue(0);
+        builder.Ignore(p => p.Blocked);
+
+        // AUDIT (CreatedAt / UpdatedAt из IAuditableEntity)
+
+        builder.Property(p => p.CreatedAt)
+            .HasColumnName("created_at")
+            .HasColumnType("timestamptz")
+            .IsRequired();
+
+        builder.Property(p => p.UpdatedAt)
+            .HasColumnName("updated_at")
+            .HasColumnType("timestamptz")
+            .IsRequired();
 
         builder.Ignore(p => p.DomainEvents);
 
-        // Skus как обычная связь (Sku — это сущность, у неё свой Id и жизненный цикл)
-        builder.HasMany(p => p.Skus)
-            .WithOne()
-            .HasForeignKey(s => s.ProductId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.Metadata
-            .FindNavigation(nameof(Product.Skus))!
-            .SetPropertyAccessMode(PropertyAccessMode.Field);
-
-        // Images — тоже сущность
-        builder.HasMany(p => p.Images)
-            .WithOne()
-            .HasForeignKey(i => i.ProductId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.Metadata
-            .FindNavigation(nameof(Product.Images))!
-            .SetPropertyAccessMode(PropertyAccessMode.Field);
-
-        // Characteristics — OWNED TYPE
-        // Будет создана отдельная таблица "product_characteristics"
-        builder.OwnsMany(p => p.Characteristics, charBuilder =>
+        // BlockingReason — Value Object с тремя полями. Колонки добавляются
+        // прямо в таблицу products: blocking_reason_reason_id (3 колонки),
+        // _title, _comment. Они nullable — если товар не заблокирован, NULL.
+        builder.OwnsOne(p => p.BlockingReason, br =>
         {
-            charBuilder.ToTable("product_characteristics");
-            charBuilder.WithOwner().HasForeignKey("ProductId");
-            charBuilder.HasKey(c => c.Id);
-            charBuilder.Property(c => c.Name).HasMaxLength(100).IsRequired();
-            charBuilder.Property(c => c.Value).HasMaxLength(255).IsRequired();
+            br.Property(x => x.ReasonId)
+                .HasColumnName("blocking_reason_reason_id");
+
+            br.Property(x => x.Title)
+                .HasColumnName("blocking_reason_title")
+                .HasMaxLength(255);
+
+            br.Property(x => x.Comment)
+                .HasColumnName("blocking_reason_comment")
+                .HasMaxLength(2000);
         });
 
-        builder.Metadata
-            .FindNavigation(nameof(Product.Characteristics))!
-            .SetPropertyAccessMode(PropertyAccessMode.Field);
-    }
-}
-
-internal class SkuConfiguration : IEntityTypeConfiguration<Sku>
-{
-    public void Configure(EntityTypeBuilder<Sku> builder)
-    {
-        builder.ToTable("skus");
-        builder.HasKey(s => s.Id);
-        builder.Property(s => s.ProductId).IsRequired();
-        builder.Property(s => s.Name).HasMaxLength(255).IsRequired();
-        builder.Property(s => s.Price).HasPrecision(18, 2).IsRequired();
-        builder.Property(s => s.Quantity).IsRequired();
-
-        // Characteristics — OWNED TYPE для Sku
-        // Отдельная таблица "sku_characteristics"
-        builder.OwnsMany(s => s.Characteristics, charBuilder =>
+        // ProductCharacteristic — Value Object без Id. Хранится в отдельной
+        // таблице product_characteristics, но нет навигации, нет DbSet.
+        // EF создаёт shadow-key (composite: product_id + auto int).
+        builder.OwnsMany(p => p.Characteristics, c =>
         {
-            charBuilder.ToTable("sku_characteristics");
-            charBuilder.WithOwner().HasForeignKey("SkuId");
-            charBuilder.HasKey(c => c.Id);
-            charBuilder.Property(c => c.Name).HasMaxLength(100).IsRequired();
-            charBuilder.Property(c => c.Value).HasMaxLength(255).IsRequired();
+            c.ToTable("product_characteristics");
+
+            // Foreign key к products
+            c.WithOwner().HasForeignKey("product_id");
+
+            // Shadow ID — EF создаст auto-increment колонку
+            c.Property<int>("id");
+            c.HasKey("product_id", "id");
+
+            c.Property(x => x.Name)
+                .HasColumnName("name")
+                .IsRequired()
+                .HasMaxLength(100);
+
+            c.Property(x => x.Value)
+                .HasColumnName("value")
+                .IsRequired()
+                .HasMaxLength(500);
         });
+        builder.Navigation(p => p.Characteristics)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
 
-        builder.Metadata
-            .FindNavigation(nameof(Sku.Characteristics))!
-            .SetPropertyAccessMode(PropertyAccessMode.Field);
+        // FieldReport имеет свой Guid Id и должен сохраняться полноценной
+        // строкой в отдельной таблице. Это HasMany, не OwnsMany.
+        builder.HasMany(p => p.FieldReports)
+            .WithOne()
+            .HasForeignKey(fr => fr.ProductId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Navigation(p => p.FieldReports)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+
+
+
+        // GET /api/v1/products (B2B-11) — фильтр по seller_id + status:
+        builder.HasIndex(p => new { p.SellerId, p.Status })
+            .HasDatabaseName("ix_products_seller_status");
+
+        // GET /api/v1/products (B2B-7, B2C catalog) — фильтр по status + deleted:
+        builder.HasIndex(p => new { p.Status, p.Deleted })
+            .HasDatabaseName("ix_products_status_deleted");
+
+        // GET /api/v1/products?category_id=... — фильтр по категории:
+        builder.HasIndex(p => p.CategoryId)
+            .HasDatabaseName("ix_products_category");
+
+
+
+        // CHECK CONSTRAINTS (защита на уровне БД)
+        builder.ToTable(t =>
+        {
+            t.HasCheckConstraint(
+                "ck_products_moderation_round_non_negative",
+                "moderation_round >= 0");
+        });
     }
 }
-
-internal class ProductImageConfiguration : IEntityTypeConfiguration<ProductImage>
-{
-    public void Configure(EntityTypeBuilder<ProductImage> builder)
-    {
-        builder.ToTable("product_images");
-        builder.HasKey(i => i.Id);
-        builder.Property(i => i.ProductId).IsRequired();
-        builder.Property(i => i.Url).HasMaxLength(500).IsRequired();
-        builder.Property(i => i.Order).IsRequired();
-    }
-}
-
-// CharacteristicConfiguration больше НЕ НУЖНА — она конфигурируется внутри OwnsMany

@@ -21,9 +21,9 @@ namespace B2B.Application.Common.Abstractions
         /// <param name="content">Содержимое файла (валидация уже произведена).</param>
         /// <param name="extension">Расширение без точки ("jpg", "png", "webp").</param>
         /// <param name="folder">Логический "путь" вида "products/{entity_id}".</param>
-        Task<string> Upload(string content,string extension, string folder,CancellationToken ct);
+        Task<string> UploadAsync(Stream content,string extension, string folder,CancellationToken ct);
 
-        Task DeletedAt(string url,CancellationToken ct);
+        Task DeleteAsync(string url,CancellationToken ct);
 
     }
 }
