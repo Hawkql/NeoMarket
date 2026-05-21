@@ -8,28 +8,54 @@ using Microsoft.EntityFrameworkCore;
 
 namespace B2B.Infrastructure.Persistence.Repositories
 {
-    internal class InvoiceRepository : IInvoiceRepository
-    {
-        private readonly B2BDbContext _db;
 
-        public InvoiceRepository(B2BDbContext db)
+    public sealed class InvoiceRepository : IInvoiceRepository
+    {
+        private readonly B2BDbContext _dbContext;
+
+        public InvoiceRepository(B2BDbContext dbContext)
         {
-            _db = db;
+            _dbContext = dbContext;
         }
 
-        public Task<Invoice?> GetByIdAsync(Guid id, CancellationToken ct) =>
-            _db.Invoices
-                .Include(i => i.Lines)
+        public async Task<Invoice?> GetByIdAsync(Guid id, CancellationToken ct)
+        {
+            // Загружаем агрегат с позициями
+            return await _dbContext.Invoices
+                .Include("_items")  // backing field, см. InvoiceConfiguration
                 .FirstOrDefaultAsync(i => i.Id == id, ct);
+        }
+
+        public async Task<(IReadOnlyCollection<Invoice> Items, int Total)> GetBySellerAsync(
+            Guid sellerId,
+            InvoiceStatus? statusFilter,
+            int limit,
+            int offset,
+            CancellationToken ct)
+        {
+            // Использует ix_invoices_seller_status_created
+            var query = _dbContext.Invoices
+                .AsNoTracking()
+                .Where(i => i.SellerId == sellerId);
+
+            if (statusFilter.HasValue)
+                query = query.Where(i => i.Status == statusFilter.Value);
+
+            var total = await query.CountAsync(ct);
+
+            var items = await query
+                .OrderByDescending(i => i.CreatedAt)
+                .Skip(offset)
+                .Take(limit)
+                .Include("_items")
+                .ToListAsync(ct);
+
+            return (items, total);
+        }
 
         public async Task AddAsync(Invoice invoice, CancellationToken ct)
         {
-            await _db.Invoices.AddAsync(invoice, ct);
-        }
-
-        public void Update(Invoice invoice)
-        {
-            _db.Invoices.Update(invoice);
+            await _dbContext.Invoices.AddAsync(invoice, ct);
         }
     }
 }

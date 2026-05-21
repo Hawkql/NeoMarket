@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -9,99 +10,232 @@ using B2B.Domain.Products.Events;
 namespace B2B.Domain.Products
 {
     // B2B.Domain/Products/Product.cs
-public class Product : AggregateRoot<Guid>
-{
-    private readonly List<Sku> _skus = new();
-    private readonly List<ProductImage> _images = new();
-    private readonly List<Characteristic> _characteristics = new();
-    
-    public IReadOnlyList<Sku> Skus => _skus.AsReadOnly();
-    public IReadOnlyList<ProductImage> Images => _images.AsReadOnly();
-    public IReadOnlyList<Characteristic> Characteristics => _characteristics.AsReadOnly();
-
-    public string Title { get; private set; } = null!;
-    public string Description { get; private set; } = null!;
-    public string Slug { get; private set; } = null!;
-    public Guid CategoryId { get; private set; }
-    public Guid SellerId { get; private set; }
-    public ProductStatus Status { get; private set; }
-
-    private Product() { }
-
-    public static Product Create(
-        string title,
-        string description,
-        Guid categoryId,
-        Guid sellerId)
+    public class Product : AggregateRoot<Guid>
     {
-        if (string.IsNullOrWhiteSpace(title))
-            throw new DomainException("Product title is required");
-        if (title.Length > 255)
-            throw new DomainException("Product title is too long");
 
-        var product = new Product
+        private readonly List<ProductCharacteristic> _characteristics = new();
+        private readonly List<FieldReport> _fieldReports = new();
+
+        // identity
+        public Guid SellerId { get; private set; }
+        public Guid CategoryId { get; private set; }
+
+        // content
+        public string Title { get; private set; } = null!;
+        public string Description { get; private set; } = null!;
+        public IReadOnlyCollection<ProductCharacteristic> Characteristics => _characteristics.AsReadOnly();
+
+        //lifecycle
+        public ProductStatus Status { get; private set; }
+        public bool Deleted { get; private set; }
+
+        public bool Blocked => Status is ProductStatus.Blocked or ProductStatus.HardBlocked;
+
+        public BlockingReason? BlockingReason { get; private set; }
+        public IReadOnlyCollection<FieldReport> FieldReports => _fieldReports.AsReadOnly();
+
+        /// <summary>
+        /// Номер текущего раунда модерации. 0 — товар никогда не был на модерации.
+        /// Инкрементируется при каждом отправлении на модерацию.
+        /// </summary>
+        public int ModerationRound { get; private set; }
+
+        //audit
+        public DateTime CreatedAt { get; private set; }
+        public DateTime UpdatedAt { get; private set; }
+
+        private Product() { }
+        private Product(Guid id, Guid sellerId, Guid categoryId,
+        string title, string description) : base(id)
         {
-            Id = Guid.NewGuid(),
-            Title = title,
-            Description = description ?? string.Empty,
-            Slug = GenerateSlug(title),
-            CategoryId = categoryId,
-            SellerId = sellerId,
-            Status = ProductStatus.Created,
-        };
-        product.AddDomainEvent(new ProductCreatedEvent(product.Id, sellerId));
-        return product;
-    }
 
-    public void Update(string title, string description)
-    {
-        if (Status == ProductStatus.Blocked)
-            throw new DomainException("Cannot update blocked product");
-        Title = title;
-        Description = description;
-        Status = ProductStatus.Created;
-        AddDomainEvent(new ProductUpdatedEvent(Id, SellerId));
-    }
-
-    public void AddCharacteristic(string name, string value)
-    {
-        var characteristic = Characteristic.Create(name, value);
-        _characteristics.Add(characteristic);
-    }
-
-    public void AddSku(string name, decimal price, IEnumerable<Characteristic> characteristics)
-    {
-        if (price <= 0) throw new DomainException("Price must be positive");
-
-        var newCharSet = characteristics.Select(c => $"{c.Name}={c.Value}").OrderBy(x => x).ToList();
-        foreach (var existingSku in _skus)
-        {
-            var existingCharSet = existingSku.Characteristics
-                .Select(c => $"{c.Name}={c.Value}").OrderBy(x => x).ToList();
-            if (existingCharSet.SequenceEqual(newCharSet))
-                throw new DomainException("SKU with same characteristics already exists");
+            Title = title;
+            Description = description ?? string.Empty;
+            CategoryId = categoryId;
+            SellerId = sellerId;
+            Status = ProductStatus.Created;
+            Deleted = false;
+            ModerationRound = 0;
         }
-        var sku = Sku.Create(Id, name, price, characteristics);
-        _skus.Add(sku);
+
+        public static Product Create(
+            Guid sellerId,
+             Guid categoryId,
+            string title,
+            string description,
+            IEnumerable<ProductCharacteristic>? characteristics = null
+            )
+        {
+            if (sellerId == Guid.Empty)
+                throw new DomainException("SellerId is required", "INVALID_REQUEST");
+            if (categoryId == Guid.Empty)
+                throw new DomainException("CategoryId is required", "INVALID_REQUEST");
+
+            ValidateContent(title, description);
+
+            var product = new Product(Guid.NewGuid(), sellerId, categoryId, title, description);
+            if (characteristics is not null)
+                product._characteristics.AddRange(characteristics);
+
+            product.RaiseDomainEvent(new ProductCreatedEvent(product.Id, sellerId));
+            return product;
+        }
+
+        /// <summary>
+        /// Проверка, что товар не удалён и не HARD_BLOCKED — операции редактирования
+        /// над таким товаром запрещены.
+        /// </summary>
+        public void EnsureCanBeEdited()
+        {
+            if (Status == ProductStatus.Blocked)
+                throw new DomainException("Cannot edit hard-blocked product", "FORBIDDEN");
+            if (Deleted)
+                throw new DomainException("Product is deleted", "FORBIDDEN");
+        }
+
+        /// <summary>Проверка, можно ли добавлять SKU (для CreateSku Handler).</summary>
+        public void EnsureCanAddSku()
+        {
+            if (Deleted)
+                throw new DomainException("Product is deleted", "FORBIDDEN");
+            if (Status == ProductStatus.HardBlocked)
+                throw new DomainException(
+                    "Cannot add SKU to hard-blocked product", "FORBIDDEN");
+        }
+        /// <summary>
+        /// Редактирование контента товара. Если товар был MODERATED или BLOCKED —
+        /// автоматически отправляется на повторную модерацию.
+        /// </summary>
+        public void Update(Guid categoryId,
+            string title,
+            string description,
+            IEnumerable<ProductCharacteristic>? characteristics = null)
+        {
+            EnsureCanBeEdited();
+            ValidateContent(title, description);
+            if (categoryId == Guid.Empty)
+                throw new DomainException("CategoryId is required", "INVALID_REQUEST");
+
+
+            CategoryId = categoryId;
+            Title = title;
+            Description = description;
+
+            if (characteristics is not null)
+            {
+                _characteristics.Clear();
+                _characteristics.AddRange(characteristics);
+            }
+
+            RaiseDomainEvent(new ProductUpdatedEvent(Id, SellerId));
+
+            // Автоматический перевод на повторную модерацию
+            if (Status is ProductStatus.Moderated or ProductStatus.Blocked)
+                SentToModeration(ModerationReason.Edited);
+        }
+
+
+
+        //Отправка на модерацию
+
+        public void SendToModerationOnFirstSku()
+        {
+            if (Status != ProductStatus.Created)
+                return;
+            SentToModeration(ModerationReason.FirstSkuAdded);
+        }
+
+        private void SentToModeration(ModerationReason reason)
+        {
+            Status = ProductStatus.OnModeration;
+            ModerationRound++;
+            RaiseDomainEvent(new ProductSentToModerationEvent(Id, SellerId, reason));
+        }
+
+        /// <summary>
+        /// ON_MODERATION → MODERATED. Вызывается из обработчика входящего события
+        /// от Moderation (B2B-9).
+        /// </summary>
+        public void Approve()
+        {
+            if (Status != ProductStatus.OnModeration)
+                throw new DomainException($"Cannot approve product in status {Status}");
+            Status = ProductStatus.Moderated;
+            BlockingReason = null;
+            RaiseDomainEvent(new ProductApprovedEvent(Id));
+        }
+        /// <summary>
+        /// ON_MODERATION → BLOCKED. Мягкая блокировка с возможностью исправить.
+        /// </summary>
+        public void Block(BlockingReason reason,
+            IEnumerable<(FieldReportTarget Field, Guid? skuId, string comment)> reports,
+            IEnumerable<Guid> skuIds,
+            DateTime now)
+        {
+            if (Status != ProductStatus.OnModeration)
+                throw new DomainException(
+                    $"Cannot block product in status {Status}",
+                    "INVALID_STATE_TRANSITION");
+            if (reason is null)
+                throw new DomainException("BlockingReason is required", "INVALID_REQUEST");
+            Status = ProductStatus.Blocked;
+            BlockingReason = reason;
+            AddFieldReports(reports, now);
+            RaiseDomainEvent(new ProductBlockedEvent(Id, skuIds.ToList()));
+        }
+        /// <summary>
+        /// → HARD_BLOCKED. Жёсткая блокировка, terminal state.
+        /// Может вызываться из любого статуса (модератор или админ).
+        /// </summary>
+        public void HardBlock(
+         BlockingReason reason,
+         IEnumerable<(FieldReportTarget Field, Guid? SkuId, string Comment)> reports,
+         IEnumerable<Guid> skuIds,
+         DateTime now)
+        {
+            if (Status == ProductStatus.HardBlocked)
+                throw new DomainException("Product is already hard-blocked", "INVALID_REQUEST");
+            if (reason is null)
+                throw new DomainException("BlockingReason is required", "INVALID_REQUEST");
+            Status = ProductStatus.HardBlocked;
+            BlockingReason = reason;
+            AddFieldReports(reports, now);
+            RaiseDomainEvent(new ProductHardBlockedEvent(Id, skuIds.ToList()));
+        }
+        public void MarkAsDeleted(IEnumerable<Guid> skuIds)
+        {
+            if (Deleted)
+                throw new DomainException("Product already deleted", "INVALID_REQUEST");
+            Deleted = true;
+            RaiseDomainEvent(new ProductDeletedEvent(Id, SellerId, skuIds.ToList()));
+        }
+
+        private void AddFieldReports(IEnumerable<(FieldReportTarget Field, Guid? SkuId, string Comment)> reports, DateTime now)
+        {
+            foreach (var (field, skuId, comment) in reports)
+            {
+                var report = new FieldReport(
+                Guid.NewGuid(),
+                Id,
+                field,
+                skuId,
+                comment,
+                ModerationRound,  // привязываем к текущему раунду
+                now);
+                _fieldReports.Add(report);
+            }
+        }
+
+        private static void ValidateContent(string title, string description)
+        {
+            if (string.IsNullOrWhiteSpace(title))
+                throw new DomainException("title is required", "INVALID_REQUEST");
+            if (title.Length > 255)
+                throw new DomainException("title must be 1-255 characters", "INVALID_REQUEST");
+            if (string.IsNullOrWhiteSpace(description))
+                throw new DomainException("description is required", "INVALID_REQUEST");
+            if (description.Length > 5000)
+                throw new DomainException("description must be 1-5000 characters", "INVALID_REQUEST");
+        }
     }
-
-    public void IncreaseSkuQuantity(Guid skuId, int amount)
-    {
-        var sku = _skus.FirstOrDefault(s => s.Id == skuId)
-            ?? throw new DomainException("SKU not found in product");
-        sku.IncreaseQuantity(amount);
-    }
-
-    public void Approve()
-    {
-        if (Status != ProductStatus.OnModeration)
-            throw new DomainException($"Cannot approve product in status {Status}");
-        Status = ProductStatus.Moderated;
-    }
-
-    public void Block() => Status = ProductStatus.Blocked;
-
-    private static string GenerateSlug(string title) => 
-        title.ToLowerInvariant().Replace(" ", "-");
-}
 }
