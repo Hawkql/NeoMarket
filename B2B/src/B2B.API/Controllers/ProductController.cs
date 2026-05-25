@@ -1,6 +1,12 @@
-﻿using B2B.Application.Common.Abstractions;
+﻿using B2B.Api.Contracts;
+using B2B.Application.Common.Abstractions;
 using B2B.Application.Products.Commands.CreateProduct;
+using B2B.Application.Products.Commands.DeleteProduct;
+using B2B.Application.Products.Commands.UpdateProduct;
 using B2B.Application.Products.Dtos;
+using B2B.Application.Products.Queries.GetProductById;
+using B2B.Application.Products.Queries.ListProducts;
+using B2B.Domain.Products;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -10,67 +16,80 @@ namespace B2B.Api.Controllers
 
     [ApiController]
     [Route("api/v1/products")]
-    [Authorize(Policy = "SellerOnly")]    // только продавцы (US-B2B-01)
+    [Authorize(Policy = "SellerOnly")]
     public sealed class ProductsController : ControllerBase
     {
-        private readonly ISender _sender;
+        private readonly IMediator _mediator;
         private readonly ICurrentUserService _currentUser;
 
-        public ProductsController(ISender sender, ICurrentUserService currentUser)
+        public ProductsController(IMediator mediator, ICurrentUserService currentUser)
         {
-            _sender = sender;
+            _mediator = mediator;
             _currentUser = currentUser;
         }
 
-        /// <summary>POST /api/v1/products — создание товара (US-B2B-01).</summary>
         [HttpPost]
-        [ProducesResponseType(typeof(ProductDto), StatusCodes.Status201Created)]
         public async Task<IActionResult> Create(
-            [FromBody] CreateProductRequest request,
-            CancellationToken ct)
+            [FromBody] CreateProductRequest request, CancellationToken ct)
         {
-            // IDOR: seller_id берём ИЗ JWT, НЕ из тела запроса
             var command = new CreateProductCommand(
-                SellerId: _currentUser.SellerId,
+                SellerId: _currentUser.SellerId,   // из JWT, не из тела
                 CategoryId: request.CategoryId,
                 Title: request.Title,
                 Description: request.Description,
-                Images: request.Images
-                    .Select(i => new ImageInputDto(i.Url, i.Ordering))
-                    .ToList(),
-                Characteristics: (request.Characteristics ?? new())
-                    .Select(c => new CharacteristicInputDto(c.Name, c.Value))
-                    .ToList());
+                Characteristics: request.Characteristics,
+                Images: request.Images);
 
-            var result = await _sender.Send(command, ct);
-
-            // 201 Created с телом товара
-            return StatusCode(StatusCodes.Status201Created, result);
+            var result = await _mediator.Send(command, ct);
+            return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
         }
-    }
 
-    // ============ HTTP Request DTOs (только то, что присылает клиент) ============
-    // ВАЖНО: здесь НЕТ seller_id — клиент его не контролирует (IDOR).
+        [HttpGet]
+        public async Task<IActionResult> List(
+            [FromQuery] ProductStatus? status,
+            [FromQuery(Name = "include_deleted")] bool includeDeleted = false,
+            [FromQuery] int limit = 20,
+            [FromQuery] int offset = 0,
+            CancellationToken ct = default)
+        {
+            var query = new ListProductsQuery(
+                SellerId: _currentUser.SellerId,
+                Status: status,
+                IncludeDeleted: includeDeleted,
+                Limit: limit,
+                Offset: offset);
 
-    public sealed class CreateProductRequest
-    {
-        public Guid CategoryId { get; set; }
-        public string Title { get; set; } = null!;
-        public string Description { get; set; } = null!;
-        public List<ImageRequest> Images { get; set; } = new();
-        public List<CharacteristicRequest>? Characteristics { get; set; }
-    }
+            return Ok(await _mediator.Send(query, ct));
+        }
 
-    public sealed class ImageRequest
-    {
-        public string Url { get; set; } = null!;
-        public int Ordering { get; set; }
-    }
+        [HttpGet("{id:guid}")]
+        public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
+        {
+            var query = new GetProductByIdQuery(id, _currentUser.SellerId);
+            return Ok(await _mediator.Send(query, ct));
+        }
 
-    public sealed class CharacteristicRequest
-    {
-        public string Name { get; set; } = null!;
-        public string Value { get; set; } = null!;
+        [HttpPatch("{id:guid}")]
+        public async Task<IActionResult> Update(
+            Guid id, [FromBody] UpdateProductRequest request, CancellationToken ct)
+        {
+            var command = new UpdateProductCommand(
+                ProductId: id,
+                SellerId: _currentUser.SellerId,
+                Title: request.Title,
+                Description: request.Description,
+                CategoryId: request.CategoryId,
+                Characteristics: request.Characteristics);
+
+            return Ok(await _mediator.Send(command, ct));
+        }
+
+        [HttpDelete("{id:guid}")]
+        public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
+        {
+            await _mediator.Send(new DeleteProductCommand(id, _currentUser.SellerId), ct);
+            return NoContent();
+        }
     }
 
 }

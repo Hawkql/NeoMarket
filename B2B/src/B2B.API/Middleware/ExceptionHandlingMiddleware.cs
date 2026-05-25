@@ -49,9 +49,13 @@ namespace B2B.Api.Middleware
             "NOT_OWNER" => StatusCodes.Status403Forbidden,
             "FORBIDDEN" => StatusCodes.Status403Forbidden,
             "CONFLICT" => StatusCodes.Status409Conflict,
+            "FILE_TOO_LARGE" => StatusCodes.Status413PayloadTooLarge,
+            "UNSUPPORTED_MEDIA_TYPE" => StatusCodes.Status415UnsupportedMediaType,
+            "INVALID_IMAGE" => StatusCodes.Status400BadRequest,
             "INSUFFICIENT_STOCK" => StatusCodes.Status409Conflict,
             "INVALID_STATE_TRANSITION" => StatusCodes.Status400BadRequest,
             "CYCLE_DETECTED" => StatusCodes.Status400BadRequest,
+            "UNAUTHORIZED" => StatusCodes.Status401Unauthorized,
             _ => StatusCodes.Status400BadRequest
         };
 

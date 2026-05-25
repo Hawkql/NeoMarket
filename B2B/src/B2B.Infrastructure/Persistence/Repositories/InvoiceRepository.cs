@@ -52,7 +52,10 @@ namespace B2B.Infrastructure.Persistence.Repositories
 
             return (items, total);
         }
-
+        public void Remove(Invoice invoice)
+        {
+            _dbContext.Invoices.Remove(invoice);
+        }
         public async Task AddAsync(Invoice invoice, CancellationToken ct)
         {
             await _dbContext.Invoices.AddAsync(invoice, ct);

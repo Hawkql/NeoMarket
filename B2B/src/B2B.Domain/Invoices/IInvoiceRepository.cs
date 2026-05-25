@@ -19,5 +19,7 @@ namespace B2B.Domain.Invoices
             CancellationToken ct);
 
         Task AddAsync(Invoice invoice, CancellationToken ct);
+        /// <summary>Физическое удаление накладной (разрешено только в статусе Created).</summary>
+        void Remove(Invoice invoice);
     }
 }

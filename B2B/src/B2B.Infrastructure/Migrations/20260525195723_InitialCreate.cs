@@ -1,6 +1,5 @@
 ﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
-using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
@@ -81,13 +80,14 @@ namespace B2B.Infrastructure.Migrations
                     seller_id = table.Column<Guid>(type: "uuid", nullable: false),
                     status = table.Column<string>(type: "character varying(30)", maxLength: 30, nullable: false),
                     accepted_at = table.Column<DateTime>(type: "timestamptz", nullable: true),
+                    accepted_by = table.Column<Guid>(type: "uuid", nullable: true),
                     created_at = table.Column<DateTime>(type: "timestamptz", nullable: false),
                     updated_at = table.Column<DateTime>(type: "timestamptz", nullable: false)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_invoices", x => x.Id);
-                    table.CheckConstraint("ck_invoices_accepted_at_consistency", "(status = 'Pending' AND accepted_at IS NULL) OR (status <> 'Pending' AND accepted_at IS NOT NULL)");
+                    table.CheckConstraint("ck_invoices_accepted_at_consistency", "(status = 'Created' AND accepted_at IS NULL) OR (status <> 'Created')");
                 });
 
             migrationBuilder.CreateTable(
@@ -119,6 +119,7 @@ namespace B2B.Infrastructure.Migrations
                     category_id = table.Column<Guid>(type: "uuid", nullable: false),
                     title = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
                     description = table.Column<string>(type: "character varying(5000)", maxLength: 5000, nullable: false),
+                    slug = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: false),
                     status = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
                     deleted = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false),
                     blocking_reason_reason_id = table.Column<Guid>(type: "uuid", nullable: true),
@@ -135,6 +136,44 @@ namespace B2B.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "refresh_tokens",
+                columns: table => new
+                {
+                    id = table.Column<Guid>(type: "uuid", nullable: false),
+                    seller_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    token_hash = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
+                    expires_at = table.Column<DateTime>(type: "timestamptz", nullable: false),
+                    revoked = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false),
+                    created_at = table.Column<DateTime>(type: "timestamptz", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_refresh_tokens", x => x.id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "sellers",
+                columns: table => new
+                {
+                    id = table.Column<Guid>(type: "uuid", nullable: false),
+                    email = table.Column<string>(type: "character varying(320)", maxLength: 320, nullable: false),
+                    password_hash = table.Column<string>(type: "text", nullable: false),
+                    first_name = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    last_name = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    middle_name = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
+                    company_name = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
+                    inn = table.Column<string>(type: "character varying(12)", maxLength: 12, nullable: false),
+                    phone = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: true),
+                    deleted = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false),
+                    created_at = table.Column<DateTime>(type: "timestamptz", nullable: false),
+                    updated_at = table.Column<DateTime>(type: "timestamptz", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_sellers", x => x.id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "skus",
                 columns: table => new
                 {
@@ -142,8 +181,9 @@ namespace B2B.Infrastructure.Migrations
                     product_id = table.Column<Guid>(type: "uuid", nullable: false),
                     name = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
                     price = table.Column<int>(type: "integer", nullable: false),
-                    cost_price = table.Column<int>(type: "integer", nullable: false),
+                    cost_price = table.Column<int>(type: "integer", nullable: true),
                     discount = table.Column<int>(type: "integer", nullable: false, defaultValue: 0),
+                    article = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
                     image = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: false),
                     active_quantity = table.Column<int>(type: "integer", nullable: false, defaultValue: 0),
                     reserved_quantity = table.Column<int>(type: "integer", nullable: false, defaultValue: 0),
@@ -155,9 +195,9 @@ namespace B2B.Infrastructure.Migrations
                 {
                     table.PrimaryKey("PK_skus", x => x.id);
                     table.CheckConstraint("ck_skus_active_quantity_non_negative", "active_quantity >= 0");
-                    table.CheckConstraint("ck_skus_cost_price_positive", "cost_price > 0");
-                    table.CheckConstraint("ck_skus_discount_valid", "discount >= 0 AND discount < price");
-                    table.CheckConstraint("ck_skus_price_positive", "price > 0");
+                    table.CheckConstraint("ck_skus_cost_price_valid", "cost_price IS NULL OR cost_price >= 0");
+                    table.CheckConstraint("ck_skus_discount_valid", "discount >= 0 AND (price = 0 OR discount < price)");
+                    table.CheckConstraint("ck_skus_price_non_negative", "price >= 0");
                     table.CheckConstraint("ck_skus_reserved_quantity_non_negative", "reserved_quantity >= 0");
                 });
 
@@ -212,15 +252,14 @@ namespace B2B.Infrastructure.Migrations
                 name: "product_characteristics",
                 columns: table => new
                 {
-                    product_id = table.Column<Guid>(type: "uuid", nullable: false),
-                    id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    id = table.Column<Guid>(type: "uuid", nullable: false),
                     name = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
-                    value = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false)
+                    value = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
+                    product_id = table.Column<Guid>(type: "uuid", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_product_characteristics", x => new { x.product_id, x.id });
+                    table.PrimaryKey("PK_product_characteristics", x => x.id);
                     table.ForeignKey(
                         name: "FK_product_characteristics_product_product_id",
                         column: x => x.product_id,
@@ -233,15 +272,14 @@ namespace B2B.Infrastructure.Migrations
                 name: "sku_characteristics",
                 columns: table => new
                 {
-                    sku_id = table.Column<Guid>(type: "uuid", nullable: false),
-                    id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    id = table.Column<Guid>(type: "uuid", nullable: false),
                     name = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
-                    value = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false)
+                    value = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
+                    sku_id = table.Column<Guid>(type: "uuid", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_sku_characteristics", x => new { x.sku_id, x.id });
+                    table.PrimaryKey("PK_sku_characteristics", x => x.id);
                     table.ForeignKey(
                         name: "FK_sku_characteristics_skus_sku_id",
                         column: x => x.sku_id,
@@ -299,10 +337,10 @@ namespace B2B.Infrastructure.Migrations
                 columns: new[] { "seller_id", "status", "created_at" });
 
             migrationBuilder.CreateIndex(
-                name: "ix_invoices_status_pending",
+                name: "ix_invoices_status_created",
                 table: "invoices",
                 column: "status",
-                filter: "status = 'Pending'");
+                filter: "status = 'Created'");
 
             migrationBuilder.CreateIndex(
                 name: "ix_outbox_aggregate",
@@ -329,6 +367,34 @@ namespace B2B.Infrastructure.Migrations
                 name: "ix_products_status_deleted",
                 table: "product",
                 columns: new[] { "status", "deleted" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_product_characteristics_product_id",
+                table: "product_characteristics",
+                column: "product_id");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_refresh_tokens_seller",
+                table: "refresh_tokens",
+                column: "seller_id");
+
+            migrationBuilder.CreateIndex(
+                name: "ux_refresh_tokens_hash",
+                table: "refresh_tokens",
+                column: "token_hash",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "ux_sellers_email",
+                table: "sellers",
+                column: "email",
+                unique: true,
+                filter: "deleted = false");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_sku_characteristics_sku_id",
+                table: "sku_characteristics",
+                column: "sku_id");
 
             migrationBuilder.CreateIndex(
                 name: "ix_skus_product_active",
@@ -360,6 +426,12 @@ namespace B2B.Infrastructure.Migrations
 
             migrationBuilder.DropTable(
                 name: "product_characteristics");
+
+            migrationBuilder.DropTable(
+                name: "refresh_tokens");
+
+            migrationBuilder.DropTable(
+                name: "sellers");
 
             migrationBuilder.DropTable(
                 name: "sku_characteristics");

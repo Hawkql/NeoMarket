@@ -10,6 +10,7 @@ using B2B.Domain.Common;
 using B2B.Domain.Images;
 using B2B.Domain.Invoices;
 using B2B.Domain.Products;
+using B2B.Domain.Sellers;
 using B2B.Domain.Skus;
 using B2B.Infrastructure.Inbox;
 using B2B.Infrastructure.Outbox;
@@ -35,7 +36,8 @@ namespace B2B.Infrastructure.Persistence
         // ========================================================================
         // DBSETS — только Aggregate Roots
         // ========================================================================
-
+        public DbSet<Seller> Sellers => Set<Seller>();
+        public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
         public DbSet<Product> Products => Set<Product>();
         public DbSet<Sku> Skus => Set<Sku>();
         public DbSet<Image> Images => Set<Image>();

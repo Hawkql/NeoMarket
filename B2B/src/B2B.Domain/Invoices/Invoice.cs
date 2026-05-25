@@ -9,16 +9,18 @@ using static B2B.Domain.Invoices.Events.InvoiceAcceptedEvent;
 
 namespace B2B.Domain.Invoices
 {
-    public class Invoice : AggregateRoot<Guid>,IAuditableEntity
+    public class Invoice : AggregateRoot<Guid>, IAuditableEntity
     {
         private readonly List<InvoiceItem> _items = new();
 
         public Guid SellerId { get; private set; }
-        
-        public InvoiceStatus Status { get; private set; } 
+        public InvoiceStatus Status { get; private set; }
 
-        /// <summary>Время приёмки. null пока не принята.</summary>
+        /// <summary>Время приёмки. null пока не принята/не отменена без приёмки.</summary>
         public DateTime? AcceptedAt { get; private set; }
+
+        /// <summary>Кто принял накладную (sub из JWT). null до приёмки.</summary>
+        public Guid? AcceptedBy { get; private set; }
 
         public IReadOnlyList<InvoiceItem> Items => _items.AsReadOnly();
 
@@ -26,93 +28,96 @@ namespace B2B.Domain.Invoices
         public DateTime UpdatedAt { get; set; }
 
         private Invoice() { }
-        private Invoice(Guid id,Guid sellerId):base(id) 
+
+        private Invoice(Guid id, Guid sellerId) : base(id)
         {
             SellerId = sellerId;
-            Status = InvoiceStatus.Pending;
+            Status = InvoiceStatus.Created;
             AcceptedAt = null;
+            AcceptedBy = null;
         }
-        public static Invoice Create(Guid sellerId,
-            IEnumerable<(Guid SkuId,int Quantity)> items)
+
+        public static Invoice Create(
+            Guid sellerId,
+            IEnumerable<(Guid SkuId, int Quantity)> items)
         {
             if (sellerId == Guid.Empty)
                 throw new DomainException("SellerId is required", "INVALID_REQUEST");
+
             var itemsList = items?.ToList()
-           ?? throw new DomainException("items are required", "INVALID_REQUEST");
+                ?? throw new DomainException("items are required", "INVALID_REQUEST");
 
             if (itemsList.Count == 0)
-                throw new DomainException(
-                    "At least one item is required", "INVALID_REQUEST");
+                throw new DomainException("At least one item is required", "INVALID_REQUEST");
 
-            var dublicateSkuIds = itemsList.GroupBy(i=>i.SkuId)
-                .Where(i=>i.Count()>1)
-                .Select(k=>k.Key)
+            var duplicateSkuIds = itemsList.GroupBy(i => i.SkuId)
+                .Where(g => g.Count() > 1)
+                .Select(g => g.Key)
                 .ToList();
-            if(dublicateSkuIds.Any())
+            if (duplicateSkuIds.Any())
                 throw new DomainException(
-                $"Duplicate SKU in invoice: {string.Join(", ", dublicateSkuIds)}",
-                "INVALID_REQUEST");
+                    $"Duplicate SKU in invoice: {string.Join(", ", duplicateSkuIds)}",
+                    "INVALID_REQUEST");
 
-            var invoice = new Invoice(Guid.NewGuid(),sellerId);
+            var invoice = new Invoice(Guid.NewGuid(), sellerId);
 
-
-            foreach( var (skuid ,quantity) in itemsList)
+            foreach (var (skuId, quantity) in itemsList)
             {
-                var item = new InvoiceItem(
-                    Guid.NewGuid(), invoice.Id, skuid, quantity);
-                invoice._items.Add(item);
+                if (quantity <= 0)
+                    throw new DomainException("quantity must be positive", "INVALID_REQUEST");
 
+                var item = new InvoiceItem(Guid.NewGuid(), invoice.Id, skuId, quantity);
+                invoice._items.Add(item);
             }
 
-            invoice.RaiseDomainEvent(new InvoiceCreatedEvent(invoice.Id, sellerId,
-                itemsList.Select(i => i.SkuId).ToList()));
+            invoice.RaiseDomainEvent(new InvoiceCreatedEvent(
+                invoice.Id, sellerId, itemsList.Select(i => i.SkuId).ToList()));
 
             return invoice;
         }
+
         /// <summary>
-        /// Приёмка накладной. На входе — словарь sku_id → accepted_quantity.
+        /// Приёмка накладной по invoice_item_id.
         /// 
-        /// Меняет ТОЛЬКО Invoice (status, accepted_at, items.accepted_quantity).
-        /// SKU.ActiveQuantity увеличивается отдельно в Application Handler
+        /// acceptedByItemId — словарь invoice_item_id → accepted_quantity.
+        /// Позиции, НЕ указанные в словаре, принимаются полностью (accepted = quantity).
+        /// Пустой словарь → вся накладная принята полностью.
+        /// 
+        /// Меняет только Invoice. SKU.IncreaseStock вызывается в Handler
         /// в той же транзакции.
-        /// 
-        /// После приёмки изменения невозможны.
         /// </summary>
         public void Accept(
-            IReadOnlyDictionary<Guid, int> acceptedBySkuId,
+            IReadOnlyDictionary<Guid, int> acceptedByItemId,
+            Guid acceptedBy,
             DateTime acceptedAt)
         {
-            if (Status != InvoiceStatus.Pending)
+            if (Status != InvoiceStatus.Created)
                 throw new DomainException(
                     $"Cannot accept invoice in status {Status}",
                     "INVALID_STATE_TRANSITION");
 
-            // Проверяем, что все items получили решение
-            var presentSkuIds = _items.Select(i => i.SkuId).ToHashSet();
-            var providedSkuIds = acceptedBySkuId.Keys.ToHashSet();
-
-            if (!presentSkuIds.SetEquals(providedSkuIds))
-            {
-                var missing = presentSkuIds.Except(providedSkuIds);
-                var extra = providedSkuIds.Except(presentSkuIds);
+            // Проверяем, что все переданные item_id принадлежат накладной
+            var presentItemIds = _items.Select(i => i.Id).ToHashSet();
+            var unknown = acceptedByItemId.Keys.Where(id => !presentItemIds.Contains(id)).ToList();
+            if (unknown.Any())
                 throw new DomainException(
-                    $"Acceptance must cover all items exactly. " +
-                    $"Missing: [{string.Join(", ", missing)}], " +
-                    $"Extra: [{string.Join(", ", extra)}]",
+                    $"Unknown invoice_item_id: {string.Join(", ", unknown)}",
                     "INVALID_REQUEST");
-            }
 
-            // Применяем accepted_quantity к каждой позиции
+            // Применяем accepted_quantity: указанные — по словарю, остальные — полностью
             foreach (var item in _items)
             {
-                item.SetAcceptedQuantity(acceptedBySkuId[item.SkuId]);
+                var accepted = acceptedByItemId.TryGetValue(item.Id, out var qty)
+                    ? qty
+                    : item.Quantity;   // не указан → принят полностью
+
+                item.SetAcceptedQuantity(accepted);  // внутренняя валидация 0..quantity
             }
 
-            // Вычисляем финальный статус
             Status = ComputeStatus();
             AcceptedAt = acceptedAt;
+            AcceptedBy = acceptedBy;
 
-            // Готовим payload для события (только принятые позиции)
             var acceptedLines = _items
                 .Where(i => i.AcceptedQuantity > 0)
                 .Select(i => new InvoiceAcceptedLine(i.SkuId, i.AcceptedQuantity!.Value))
@@ -121,20 +126,24 @@ namespace B2B.Domain.Invoices
             RaiseDomainEvent(new InvoiceAcceptedEvent(
                 Id, SellerId, Status, acceptedLines));
         }
-
+        public void EnsureCanBeDeleted()
+        {
+            if (Status != InvoiceStatus.Created)
+                throw new DomainException(
+                    $"Cannot delete invoice in status {Status}", "CONFLICT");
+        }
         private InvoiceStatus ComputeStatus()
         {
-            var allFullyAccepted = _items.All(
-                i => i.AcceptedQuantity == i.Quantity);
-            var allRejected = _items.All(
-                i => i.AcceptedQuantity == 0);
+            var allFullyAccepted = _items.All(i => i.AcceptedQuantity == i.Quantity);
+            var allRejected = _items.All(i => i.AcceptedQuantity == 0);
 
             return (allFullyAccepted, allRejected) switch
             {
                 (true, _) => InvoiceStatus.Accepted,
-                (_, true) => InvoiceStatus.Rejected,
+                (_, true) => InvoiceStatus.Cancelled,
                 _ => InvoiceStatus.PartiallyAccepted
             };
         }
     }
 }
+

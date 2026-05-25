@@ -22,11 +22,8 @@ namespace B2B.Domain.Categories
         /// <summary>Порядок сортировки внутри одного уровня. 0 = первая.</summary>
         public int Ordering {  get; private set; }
         public bool Deleted { get; private set; }
-        DateTime IAuditableEntity.CreatedAt { get ; set ; }
-        DateTime IAuditableEntity.UpdatedAt { get ; set ; }
-
-        public DateTime CreatedAt;
-        public DateTime UpdatedAt;
+        public DateTime CreatedAt { get; set; }
+        public DateTime UpdatedAt { get; set; }
 
         public Category() { }
         private Category(Guid id,Guid? parentId,string name,int ordering):base(id) 

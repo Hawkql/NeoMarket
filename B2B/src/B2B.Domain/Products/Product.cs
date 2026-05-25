@@ -23,6 +23,7 @@ namespace B2B.Domain.Products
         // content
         public string Title { get; private set; } = null!;
         public string Description { get; private set; } = null!;
+        public string Slug { get; private set; } = null!;
         public IReadOnlyCollection<ProductCharacteristic> Characteristics => _characteristics.AsReadOnly();
 
         //lifecycle
@@ -51,6 +52,7 @@ namespace B2B.Domain.Products
 
             Title = title;
             Description = description ?? string.Empty;
+            Slug = GenerateSlug(title);
             CategoryId = categoryId;
             SellerId = sellerId;
             Status = ProductStatus.Created;
@@ -80,6 +82,18 @@ namespace B2B.Domain.Products
             product.RaiseDomainEvent(new ProductCreatedEvent(product.Id, sellerId));
             return product;
         }
+        /// <summary>
+        /// Повторная модерация после редактирования (товара или его SKU).
+        /// Срабатывает только из MODERATED/BLOCKED — из CREATED/ON_MODERATION/HARD_BLOCKED
+        /// переход не нужен или невозможен. Поднимает событие EDITED.
+        /// Используется при PATCH /skus/{id} (US-B2B-03).
+        /// </summary>
+        public void SendToModerationOnEdit()
+        {
+            EnsureCanBeEdited();   // HARD_BLOCKED/deleted → FORBIDDEN
+            if (Status is ProductStatus.Moderated or ProductStatus.Blocked)
+                SentToModeration(ModerationReason.Edited);
+        }
 
         /// <summary>
         /// Проверка, что товар не удалён и не HARD_BLOCKED — операции редактирования
@@ -87,12 +101,24 @@ namespace B2B.Domain.Products
         /// </summary>
         public void EnsureCanBeEdited()
         {
-            if (Status == ProductStatus.Blocked)
-                throw new DomainException("Cannot edit hard-blocked product", "FORBIDDEN");
             if (Deleted)
                 throw new DomainException("Product is deleted", "FORBIDDEN");
+            if (Status == ProductStatus.HardBlocked)
+                throw new DomainException("Cannot edit hard-blocked product", "FORBIDDEN");
         }
+        private static string GenerateSlug(string title)
+        {
+            var baseSlug = new string((title ?? string.Empty).ToLowerInvariant()
+                .Select(c => char.IsLetterOrDigit(c) ? c : '-')
+                .ToArray())
+                .Trim('-');
 
+            while (baseSlug.Contains("--"))
+                baseSlug = baseSlug.Replace("--", "-");
+
+            var suffix = Guid.NewGuid().ToString("N")[..6];
+            return string.IsNullOrEmpty(baseSlug) ? suffix : $"{baseSlug}-{suffix}";
+        }
         /// <summary>Проверка, можно ли добавлять SKU (для CreateSku Handler).</summary>
         public void EnsureCanAddSku()
         {

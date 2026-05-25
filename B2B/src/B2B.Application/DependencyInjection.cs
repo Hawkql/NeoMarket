@@ -20,13 +20,14 @@ namespace B2B.Application
             // MediatR — регистрирует все Command/Query Handlers из сборки
             services.AddMediatR(cfg =>
             {
-                cfg.RegisterServicesFromAssembly(assembly);
-                // ValidationBehavior встраивается в pipeline ПЕРЕД handlers
-                cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));
+            cfg.RegisterServicesFromAssembly(typeof(DependencyInjection).Assembly);
+            // ValidationBehavior встраивается в pipeline ПЕРЕД handlers
+            cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));
             });
 
             // FluentValidation — регистрирует все валидаторы из сборки
-            services.AddValidatorsFromAssembly(assembly);
+
+            services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly);
 
             return services;
         }

@@ -17,12 +17,27 @@ namespace B2B.Domain.Skus
             IEnumerable<Guid> ids, CancellationToken ct);
 
         Task<IReadOnlyCollection<Sku>> GetByProductIdAsync(Guid productId, CancellationToken ct);
-
+        /// <summary>Минимальная цена активного SKU по каждому product_id (batch, для списков).</summary>
+        Task<IReadOnlyDictionary<Guid, int>> GetMinPriceByProductIdsAsync(
+            IEnumerable<Guid> productIds, CancellationToken ct);
         Task<int> CountByProductIdAsync(Guid productId, CancellationToken ct);
 
         Task AddAsync(Sku sku, CancellationToken ct);
 
+        /// <summary>
+        /// Возвращает sku_id → seller_id (через product) для переданных SKU.
+        /// Используется для ownership-проверки при создании накладной (US-B2B-06).
+        /// Удалённые SKU не включаются.
+        /// </summary>
+        Task<IReadOnlyDictionary<Guid, Guid>> GetSellerIdsBySkuIdsAsync(
+            IEnumerable<Guid> skuIds, CancellationToken ct);
+
         /// <summary>Физическое удаление (если потребуется). Soft-delete — через Sku.MarkAsDeleted.</summary>
         void Remove(Sku sku);
+
+        /// <summary>Не удалённые SKU по списку product_id (batch, для витринных карточек).</summary>
+        Task<IReadOnlyCollection<Sku>> GetByProductIdsAsync(
+            IEnumerable<Guid> productIds, CancellationToken ct);
+
     }
 }

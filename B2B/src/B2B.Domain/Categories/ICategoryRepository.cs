@@ -33,5 +33,18 @@ namespace B2B.Domain.Categories
 
         Task AddAsync(Category category, CancellationToken ct);
         void Remove(Category category);
+        /// <summary>
+        /// level (глубина от корня, корень=0) и path (slug-цепочка имён) для категорий.
+        /// Вычисляется восходящим CTE. Ключ — category_id.
+        /// </summary>
+        Task<IReadOnlyDictionary<Guid, (int Level, string Path)>> GetLevelAndPathAsync(
+            IEnumerable<Guid> categoryIds, CancellationToken ct);
+
+        /// <summary>Цепочка от корня до категории включительно (для breadcrumbs).</summary>
+        Task<IReadOnlyList<Category>> GetAncestorsChainAsync(
+            Guid categoryId, CancellationToken ct);
+
+        /// <summary>Есть ли у категории привязанные (не удалённые) товары — для delete.</summary>
+        Task<bool> HasProductsAsync(Guid categoryId, CancellationToken ct);
     }
 }
