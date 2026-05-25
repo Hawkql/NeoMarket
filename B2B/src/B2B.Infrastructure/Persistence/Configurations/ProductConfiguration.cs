@@ -36,7 +36,10 @@ internal class ProductConfiguration : IEntityTypeConfiguration<Product>
             .HasColumnName("description")
             .IsRequired()
             .HasMaxLength(5000);
-
+        builder.Property(p => p.Slug)
+            .HasColumnName("slug")
+            .IsRequired()
+            .HasMaxLength(300);
         builder.Property(p => p.Status)
             .HasColumnName("status")
             .HasConversion<string>()
@@ -92,12 +95,13 @@ internal class ProductConfiguration : IEntityTypeConfiguration<Product>
         {
             c.ToTable("product_characteristics");
 
-            // Foreign key к products
             c.WithOwner().HasForeignKey("product_id");
 
-            // Shadow ID — EF создаст auto-increment колонку
-            c.Property<int>("id");
-            c.HasKey("product_id", "id");
+            // реальный Guid Id вместо shadow int
+            c.HasKey(x => x.Id);
+            c.Property(x => x.Id)
+                .HasColumnName("id")
+                .ValueGeneratedNever();
 
             c.Property(x => x.Name)
                 .HasColumnName("name")

@@ -26,14 +26,16 @@ builder.Services
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.PropertyNamingPolicy =
-            JsonNamingPolicy.SnakeCaseLower;
-        options.JsonSerializerOptions.DefaultIgnoreCondition =
-            JsonIgnoreCondition.WhenWritingNull;
+            System.Text.Json.JsonNamingPolicy.SnakeCaseLower;
+
+        options.JsonSerializerOptions.Converters.Add(
+            new System.Text.Json.Serialization.JsonStringEnumConverter(
+                B2B.Api.Serialization.UpperSnakeCaseNamingPolicy.Instance));
     });
 
 // ============ JWT Authentication ============
-var jwtSecret = builder.Configuration["Jwt:Secret"]
-    ?? throw new InvalidOperationException("Jwt:Secret not configured");
+var jwtSecret = builder.Configuration["Jwt:SigningKey"]
+    ?? throw new InvalidOperationException("Jwt:SigningKey not configured");
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -53,36 +55,21 @@ builder.Services
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(jwtSecret)),
 
-            
-            RoleClaimType = "role",   
-            NameClaimType = "sub"     
+
+            RoleClaimType = "role",
+            NameClaimType = "sub"
         };
-        options.Events = new JwtBearerEvents
-        {
-            OnAuthenticationFailed = ctx =>
-            {
-                Console.WriteLine($">>> JWT FAILED: {ctx.Exception.GetType().Name}: {ctx.Exception.Message}");
-                return Task.CompletedTask;
-            },
-            OnTokenValidated = ctx =>
-            {
-                var claims = string.Join(", ",
-                    ctx.Principal!.Claims.Select(c => $"{c.Type}={c.Value}"));
-                Console.WriteLine($">>> JWT OK. Claims: {claims}");
-                return Task.CompletedTask;
-            },
-            OnChallenge = ctx =>
-            {
-                Console.WriteLine($">>> JWT CHALLENGE: {ctx.Error} / {ctx.ErrorDescription}");
-                return Task.CompletedTask;
-            },
-            OnForbidden = ctx =>
-            {
-                Console.WriteLine($">>> JWT FORBIDDEN: токен валиден, но роль не подходит");
-                return Task.CompletedTask;
-            }
-        };
+
+    })
+    .AddScheme<B2B.Api.Authentication.ServiceKeyAuthenticationOptions,
+          B2B.Api.Authentication.ServiceKeyAuthenticationHandler>(
+    B2B.Api.Authentication.ServiceKeyAuthenticationOptions.SchemeName,
+    options =>
+    {
+        options.ExpectedKey =
+            builder.Configuration["ServiceKey:Incoming"] ?? string.Empty;
     });
+
 
 builder.Services.AddAuthorization(options =>
 {
@@ -91,9 +78,52 @@ builder.Services.AddAuthorization(options =>
             context.User.HasClaim(c =>
                 (c.Type == "role" || c.Type == System.Security.Claims.ClaimTypes.Role)
                 && c.Value == "seller")));
+    options.AddPolicy("ServiceOnly", policy =>
+    {
+        policy.AddAuthenticationSchemes(
+            B2B.Api.Authentication.ServiceKeyAuthenticationOptions.SchemeName);
+        policy.RequireAssertion(ctx =>
+            ctx.User.HasClaim(c => c.Type == "scope" && c.Value == "service"));
+    });
+    options.AddPolicy("AdminOnly", policy =>
+    {
+        policy.AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme);
+        policy.RequireAuthenticatedUser();
+        policy.RequireAssertion(ctx =>
+            ctx.User.HasClaim(c =>
+                (c.Type == "role" || c.Type == System.Security.Claims.ClaimTypes.Role)
+                && c.Value == "admin"));
+    });
 });
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    // ќписываем Bearer JWT Ч чтобы по€вилась кнопка Authorize
+    options.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+        Description = "¬ведите JWT-токен (без слова Bearer Ч Swagger добавит сам)"
+    });
+
+    options.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    {
+        {
+            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+            {
+                Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                {
+                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
+});
 
 
 

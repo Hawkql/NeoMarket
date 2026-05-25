@@ -3,22 +3,24 @@ using B2B.Application.Common;
 using B2B.Application.Common.Abstractions;
 using B2B.Domain.Categories;
 using B2B.Domain.Images;
+using B2B.Domain.Invoices;
+using B2B.Domain.Products;
+using B2B.Domain.Sellers;
 using B2B.Domain.Skus;
 using B2B.Infrastructure.FileStorage;
 using B2B.Infrastructure.ImageProcessing;
 using B2B.Infrastructure.Outbox;
 using B2B.Infrastructure.Outbox.Dispatchers;
-using B2B.Infrastructure.Persistence.Services;
-
 using B2B.Infrastructure.Persistence;
 using B2B.Infrastructure.Persistence.Repositories;
-
+using B2B.Infrastructure.Persistence.Services;
+using B2B.Infrastructure.Security;
+using Humanizer.Configuration;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using B2B.Domain.Products;
-using B2B.Domain.Invoices;
+using SixLabors.ImageSharp;
 namespace B2B.Infrastructure
 {
     public static class DependencyInjection
@@ -33,7 +35,9 @@ namespace B2B.Infrastructure
             AddOutbox(services, config);
             AddFileStorage(services, config);
             AddCommon(services);
-
+            services.AddSingleton<IPasswordHasher, BcryptPasswordHasher>();
+            services.AddSingleton<ITokenService, TokenService>();
+            services.Configure<JwtSettings>(config.GetSection("Jwt"));
             return services;
         }
 
@@ -53,12 +57,14 @@ namespace B2B.Infrastructure
                     npgsql.MigrationsAssembly(typeof(B2BDbContext).Assembly.FullName);
                 });
             });
-
+            services.AddScoped<B2B.Application.Common.Interface.ITransactionManager, TransactionManager>();
+            services.AddScoped<IIdempotencyStore, IdempotencyStore>();
             services.AddScoped<IUnitOfWork, UnitOfWork>();
+           
         }
 
         // ========================================================================
-        // 2. REPOSITORIES (все 5)
+        // 2. REPOSITORIES (все 7)
         // ========================================================================
         private static void AddRepositories(IServiceCollection services)
         {
@@ -67,6 +73,8 @@ namespace B2B.Infrastructure
             services.AddScoped<IImageRepository, ImageRepository>();
             services.AddScoped<ICategoryRepository, CategoryRepository>();
             services.AddScoped<IInvoiceRepository, InvoiceRepository>();
+            services.AddScoped<ISellerRepository, SellerRepository>();          // ← добавить
+            services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>(); // ← добавить
         }
 
         // ========================================================================

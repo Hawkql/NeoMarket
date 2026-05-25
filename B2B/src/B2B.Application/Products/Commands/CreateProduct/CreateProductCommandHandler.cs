@@ -9,6 +9,7 @@ using B2B.Domain.Categories;
 using B2B.Domain.Common;
 using B2B.Domain.Images;
 using B2B.Domain.Products;
+using B2B.Domain.Skus;
 using MediatR;
 
 namespace B2B.Application.Products.Commands.CreateProduct
@@ -55,7 +56,7 @@ namespace B2B.Application.Products.Commands.CreateProduct
 
             await _productRepository.AddAsync(product, ct);
 
-            Console.WriteLine($">>> PRODUCT ID: {product.Id}");
+            
             // 3. Создание Image-агрегатов (polymorphic, entity_type = product)
             var images = new List<Image>();
             foreach (var img in request.Images)
@@ -72,25 +73,29 @@ namespace B2B.Application.Products.Commands.CreateProduct
             // 4. Сохранение — Product + Images + Outbox в одной транзакции
             await _unitOfWork.SaveChangesAsync(ct);
 
+            return ProductDtoMapper.Map(product,images, Array.Empty<Sku>());
             // 5. Маппинг в DTO для ответа
-            return new ProductDto(
-                Id: product.Id,
-                Title: product.Title,
-                Description: product.Description,
-                Status: product.Status.ToString().ToUpperInvariant(),  // "CREATED"
-                Deleted: product.Deleted,
-                Blocked: product.Blocked,
-                CategoryId: product.CategoryId,
-                Images: images
-                    .OrderBy(i => i.Ordering)
-                    .Select(i => new ImageDto(i.Id, i.Url, i.Ordering))
-                    .ToList(),
-                Characteristics: product.Characteristics
-                    .Select(c => new CharacteristicDto(c.Name, c.Value))
-                    .ToList(),
-                Skus: new List<SkuDto>(),  // при создании SKU всегда пусто
-                CreatedAt: product.CreatedAt,
-                UpdatedAt: product.UpdatedAt);
+            //return new ProductDto(
+            //    Id: product.Id,
+            //    SellerId: product.SellerId,
+            //    CategoryId: product.CategoryId,
+            //    Title: product.Title,
+            //    Slug: product.Slug,
+            //    Description: product.Description,
+            //    Status: product.Status,
+            //    Deleted: product.Deleted,
+            //    BlockingReasonId: product.BlockingReason?.ReasonId,
+            //    ModeratorComment: product.BlockingReason?.Comment,
+            //    Images: images
+            //        .OrderBy(i => i.Ordering)
+            //        .Select(i => new ImageDto(i.Id, i.Url, i.Ordering))
+            //        .ToList(),
+            //    Characteristics: product.Characteristics
+            //        .Select(c => new CharacteristicDto(c.Id, c.Name, c.Value))
+            //        .ToList(),
+            //    Skus: new List<SkuDto>(),
+            //    CreatedAt: product.CreatedAt,
+            //    UpdatedAt: product.UpdatedAt);
         }
     }
 }

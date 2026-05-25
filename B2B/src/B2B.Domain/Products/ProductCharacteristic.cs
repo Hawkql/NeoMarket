@@ -5,11 +5,13 @@ namespace B2B.Domain.Products;
 
 public class ProductCharacteristic
 {
+    public Guid Id { get; private set; }
     public string Name { get; private set; } = null!;
     public string Value { get; private set; } = null!;
 
     private ProductCharacteristic() { }
-    public ProductCharacteristic(string name,string value)
+
+    public ProductCharacteristic(string name, string value)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new DomainException("characteristic name is required", "INVALID_REQUEST");
@@ -20,8 +22,8 @@ public class ProductCharacteristic
         if (value.Length > 500)
             throw new DomainException("characteristic value too long", "INVALID_REQUEST");
 
+        Id = Guid.NewGuid();
         Name = name;
         Value = value;
     }
-
 }

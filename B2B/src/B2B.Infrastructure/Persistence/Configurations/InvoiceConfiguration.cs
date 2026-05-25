@@ -32,6 +32,8 @@ namespace B2B.Infrastructure.Persistence.Configurations
             builder.Property(i => i.AcceptedAt)
                 .HasColumnName("accepted_at")
                 .HasColumnType("timestamptz");
+            builder.Property(i => i.AcceptedBy)
+                .HasColumnName("accepted_by");
             builder.Property(i => i.CreatedAt)
                 .HasColumnName("created_at")
                 .HasColumnType("timestamptz")
@@ -57,18 +59,17 @@ namespace B2B.Infrastructure.Persistence.Configurations
             builder.HasIndex(i => new { i.SellerId, i.Status, i.CreatedAt })
             .HasDatabaseName("ix_invoices_seller_status_created");
 
-            // Накладные в статусе PENDING (для очереди оператора склада)
+            // Накладные в статусе Created (для очереди оператора склада)
             builder.HasIndex(i => i.Status)
-                .HasDatabaseName("ix_invoices_status_pending")
-                .HasFilter("status = 'Pending'");
+                .HasDatabaseName("ix_invoices_status_created")
+                .HasFilter("status = 'Created'");
 
             builder.ToTable(t =>
             {
-                // Если статус не Pending — обязательно accepted_at должен быть заполнен
+                // Если статус не Created — обязательно accepted_at должен быть заполнен
                 t.HasCheckConstraint(
                     "ck_invoices_accepted_at_consistency",
-                    "(status = 'Pending' AND accepted_at IS NULL) OR " +
-                    "(status <> 'Pending' AND accepted_at IS NOT NULL)");
+                    "(status = 'Created' AND accepted_at IS NULL) OR (status <> 'Created')");
             });
         }
     }

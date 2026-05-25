@@ -17,13 +17,13 @@ namespace B2B.Infrastructure.Persistence.Configurations
 
             builder.HasKey(x => x.Id);
 
-            builder.Property(s=>s.Id)
+            builder.Property(s => s.Id)
                 .HasColumnName("id")
                 .ValueGeneratedNever();
 
             builder.Property(s => s.ProductId)
-           .HasColumnName("product_id")
-           .IsRequired();
+                .HasColumnName("product_id")
+                .IsRequired();
 
             // ====================================================================
             // 3. КОНТЕНТ
@@ -33,25 +33,29 @@ namespace B2B.Infrastructure.Persistence.Configurations
                 .IsRequired()
                 .HasMaxLength(255);
 
-            // Один основной URL по спеке (обратная совместимость).
-            // Дополнительные картинки SKU — в polymorphic таблице images.
+            // Cover-картинка SKU. Опциональна (галерея — в polymorphic images).
             builder.Property(s => s.ImageUrl)
                 .HasColumnName("image")
-                .IsRequired()
-                .HasMaxLength(2000);  // S3 URL может быть длинным
+                .HasMaxLength(2000);
+            // НЕ IsRequired — по спеке images у SKU опциональны
+
+            // Артикул продавца. Опционален.
+            builder.Property(s => s.Article)
+                .HasColumnName("article")
+                .HasMaxLength(255);
+            // НЕ IsRequired — nullable по спеке
 
             // ====================================================================
             // 4. ФИНАНСОВЫЕ ПОЛЯ (kopecks, integer)
             // ====================================================================
-            // ВАЖНО: int даёт лимит ~2.1B копеек = ~21M ₽. Достаточно для большинства
-            // товаров. Если понадобится больше — миграция до bigint безопасна.
             builder.Property(s => s.Price)
                 .HasColumnName("price")
                 .IsRequired();
 
+            // cost_price nullable по спеке (видна только seller, может отсутствовать)
             builder.Property(s => s.CostPrice)
-                .HasColumnName("cost_price")
-                .IsRequired();
+                .HasColumnName("cost_price");
+            // НЕ IsRequired
 
             builder.Property(s => s.Discount)
                 .HasColumnName("discount")
@@ -106,9 +110,11 @@ namespace B2B.Infrastructure.Persistence.Configurations
 
                 c.WithOwner().HasForeignKey("sku_id");
 
-                // Shadow ID — auto-increment
-                c.Property<int>("id");
-                c.HasKey("sku_id", "id");
+                // реальный Guid Id вместо shadow int
+                c.HasKey(x => x.Id);
+                c.Property(x => x.Id)
+                    .HasColumnName("id")
+                    .ValueGeneratedNever();
 
                 c.Property(x => x.Name)
                     .HasColumnName("name")
@@ -121,41 +127,38 @@ namespace B2B.Infrastructure.Persistence.Configurations
                     .HasMaxLength(500);
             });
 
-            // Backing field _characteristics
             builder.Navigation(s => s.Characteristics)
                 .UsePropertyAccessMode(PropertyAccessMode.Field);
 
             // ====================================================================
             // 10. ИНДЕКСЫ
             // ====================================================================
-            // Запрос "все SKU товара" (ISkuRepository.GetByProductIdAsync)
             builder.HasIndex(s => s.ProductId)
                 .HasDatabaseName("ix_skus_product");
 
-            // Partial index — запрос "не удалённые SKU товара" (для каталога):
-            // CREATE INDEX ... WHERE deleted = false;
-            // Postgres-specific: индексирует только активные строки, экономит место
-            // и ускоряет запросы из B2C.
             builder.HasIndex(s => s.ProductId)
                 .HasDatabaseName("ix_skus_product_active")
                 .HasFilter("deleted = false");
 
             // ====================================================================
-            // 11. CHECK CONSTRAINTS (защита инвариантов на уровне БД)
+            // 11. CHECK CONSTRAINTS (приведены к новым правилам Domain)
             // ====================================================================
             builder.ToTable(t =>
             {
+                // price >= 0 (спека minimum: 0)
                 t.HasCheckConstraint(
-                    "ck_skus_price_positive",
-                    "price > 0");
+                    "ck_skus_price_non_negative",
+                    "price >= 0");
 
+                // cost_price: либо NULL, либо >= 0
                 t.HasCheckConstraint(
-                    "ck_skus_cost_price_positive",
-                    "cost_price > 0");
+                    "ck_skus_cost_price_valid",
+                    "cost_price IS NULL OR cost_price >= 0");
 
+                // discount >= 0, и меньше price только когда price > 0
                 t.HasCheckConstraint(
                     "ck_skus_discount_valid",
-                    "discount >= 0 AND discount < price");
+                    "discount >= 0 AND (price = 0 OR discount < price)");
 
                 t.HasCheckConstraint(
                     "ck_skus_active_quantity_non_negative",
@@ -165,7 +168,6 @@ namespace B2B.Infrastructure.Persistence.Configurations
                     "ck_skus_reserved_quantity_non_negative",
                     "reserved_quantity >= 0");
             });
-        
-    }
+        }
     }
 }

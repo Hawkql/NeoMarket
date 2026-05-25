@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace B2B.Infrastructure.Migrations
 {
     [DbContext(typeof(B2BDbContext))]
-    [Migration("20260520191225_InitialCreate")]
+    [Migration("20260525195723_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -20,7 +20,7 @@ namespace B2B.Infrastructure.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.27")
+                .HasAnnotation("ProductVersion", "8.0.11")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -137,6 +137,10 @@ namespace B2B.Infrastructure.Migrations
                         .HasColumnType("timestamptz")
                         .HasColumnName("accepted_at");
 
+                    b.Property<Guid?>("AcceptedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("accepted_by");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamptz")
                         .HasColumnName("created_at");
@@ -158,15 +162,15 @@ namespace B2B.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("Status")
-                        .HasDatabaseName("ix_invoices_status_pending")
-                        .HasFilter("status = 'Pending'");
+                        .HasDatabaseName("ix_invoices_status_created")
+                        .HasFilter("status = 'Created'");
 
                     b.HasIndex("SellerId", "Status", "CreatedAt")
                         .HasDatabaseName("ix_invoices_seller_status_created");
 
                     b.ToTable("invoices", null, t =>
                         {
-                            t.HasCheckConstraint("ck_invoices_accepted_at_consistency", "(status = 'Pending' AND accepted_at IS NULL) OR (status <> 'Pending' AND accepted_at IS NOT NULL)");
+                            t.HasCheckConstraint("ck_invoices_accepted_at_consistency", "(status = 'Created' AND accepted_at IS NULL) OR (status <> 'Created')");
                         });
                 });
 
@@ -293,6 +297,12 @@ namespace B2B.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("seller_id");
 
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("slug");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -326,6 +336,123 @@ namespace B2B.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("B2B.Domain.Sellers.RefreshToken", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("expires_at");
+
+                    b.Property<bool>("Revoked")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("revoked");
+
+                    b.Property<Guid>("SellerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("seller_id");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("token_hash");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SellerId")
+                        .HasDatabaseName("ix_refresh_tokens_seller");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique()
+                        .HasDatabaseName("ux_refresh_tokens_hash");
+
+                    b.ToTable("refresh_tokens", (string)null);
+                });
+
+            modelBuilder.Entity("B2B.Domain.Sellers.Seller", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CompanyName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("company_name");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("created_at");
+
+                    b.Property<bool>("Deleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("deleted");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)")
+                        .HasColumnName("email");
+
+                    b.Property<string>("FirstName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("first_name");
+
+                    b.Property<string>("Inn")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)")
+                        .HasColumnName("inn");
+
+                    b.Property<string>("LastName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("last_name");
+
+                    b.Property<string>("MiddleName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("middle_name");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("password_hash");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("phone");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Email")
+                        .IsUnique()
+                        .HasDatabaseName("ux_sellers_email")
+                        .HasFilter("deleted = false");
+
+                    b.ToTable("sellers", (string)null);
+                });
+
             modelBuilder.Entity("B2B.Domain.Skus.Sku", b =>
                 {
                     b.Property<Guid>("Id")
@@ -338,7 +465,12 @@ namespace B2B.Infrastructure.Migrations
                         .HasDefaultValue(0)
                         .HasColumnName("active_quantity");
 
-                    b.Property<int>("CostPrice")
+                    b.Property<string>("Article")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("article");
+
+                    b.Property<int?>("CostPrice")
                         .HasColumnType("integer")
                         .HasColumnName("cost_price");
 
@@ -398,11 +530,11 @@ namespace B2B.Infrastructure.Migrations
                         {
                             t.HasCheckConstraint("ck_skus_active_quantity_non_negative", "active_quantity >= 0");
 
-                            t.HasCheckConstraint("ck_skus_cost_price_positive", "cost_price > 0");
+                            t.HasCheckConstraint("ck_skus_cost_price_valid", "cost_price IS NULL OR cost_price >= 0");
 
-                            t.HasCheckConstraint("ck_skus_discount_valid", "discount >= 0 AND discount < price");
+                            t.HasCheckConstraint("ck_skus_discount_valid", "discount >= 0 AND (price = 0 OR discount < price)");
 
-                            t.HasCheckConstraint("ck_skus_price_positive", "price > 0");
+                            t.HasCheckConstraint("ck_skus_price_non_negative", "price >= 0");
 
                             t.HasCheckConstraint("ck_skus_reserved_quantity_non_negative", "reserved_quantity >= 0");
                         });
@@ -573,14 +705,9 @@ namespace B2B.Infrastructure.Migrations
 
                     b.OwnsMany("B2B.Domain.Products.ProductCharacteristic", "Characteristics", b1 =>
                         {
-                            b1.Property<Guid>("product_id")
-                                .HasColumnType("uuid");
-
-                            b1.Property<int>("id")
-                                .ValueGeneratedOnAdd()
-                                .HasColumnType("integer");
-
-                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("id"));
+                            b1.Property<Guid>("Id")
+                                .HasColumnType("uuid")
+                                .HasColumnName("id");
 
                             b1.Property<string>("Name")
                                 .IsRequired()
@@ -594,7 +721,12 @@ namespace B2B.Infrastructure.Migrations
                                 .HasColumnType("character varying(500)")
                                 .HasColumnName("value");
 
-                            b1.HasKey("product_id", "id");
+                            b1.Property<Guid>("product_id")
+                                .HasColumnType("uuid");
+
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("product_id");
 
                             b1.ToTable("product_characteristics", (string)null);
 
@@ -611,14 +743,9 @@ namespace B2B.Infrastructure.Migrations
                 {
                     b.OwnsMany("B2B.Domain.Skus.SkuCharacteristic", "Characteristics", b1 =>
                         {
-                            b1.Property<Guid>("sku_id")
-                                .HasColumnType("uuid");
-
-                            b1.Property<int>("id")
-                                .ValueGeneratedOnAdd()
-                                .HasColumnType("integer");
-
-                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("id"));
+                            b1.Property<Guid>("Id")
+                                .HasColumnType("uuid")
+                                .HasColumnName("id");
 
                             b1.Property<string>("Name")
                                 .IsRequired()
@@ -632,7 +759,12 @@ namespace B2B.Infrastructure.Migrations
                                 .HasColumnType("character varying(500)")
                                 .HasColumnName("value");
 
-                            b1.HasKey("sku_id", "id");
+                            b1.Property<Guid>("sku_id")
+                                .HasColumnType("uuid");
+
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("sku_id");
 
                             b1.ToTable("sku_characteristics", (string)null);
 
