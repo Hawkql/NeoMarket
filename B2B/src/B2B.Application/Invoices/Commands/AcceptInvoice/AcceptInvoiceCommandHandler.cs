@@ -54,7 +54,7 @@ namespace B2B.Application.Invoices.Commands.AcceptInvoice
 
             // Только Created можно принять (409 иначе) — доменная защита внутри Accept,
             // но проверяем заранее для чистого 409 без открытия транзакции
-            if (invoice.Status != InvoiceStatus.Created)
+            if (invoice.Status != InvoiceStatus.Pending)
                 throw new DomainException(
                     $"Cannot accept invoice in status {invoice.Status}", "CONFLICT");
 

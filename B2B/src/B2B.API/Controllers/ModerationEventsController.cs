@@ -9,18 +9,35 @@ namespace B2B.Api.Controllers
 
     [ApiController]
     [Route("api/v1/events")]
-    [Authorize(Policy = "ServiceOnly", AuthenticationSchemes = "ServiceKey")]
-    public sealed class ModerationEventsController : ControllerBase
+    [AllowAnonymous]
+    public sealed class ModerationController : ControllerBase
     {
         private readonly IMediator _mediator;
+        private readonly IConfiguration _config;
 
-        public ModerationEventsController(IMediator mediator) => _mediator = mediator;
+        public ModerationController(IMediator mediator, IConfiguration config)
+        {
+            _mediator = mediator;
+            _config = config;
+        }
 
-        // POST /api/v1/events/moderation — вызывает Moderation-сервис
+        private IActionResult? CheckServiceKey()
+        {
+            var expected = _config["ServiceKey:Incoming"];
+            var provided = Request.Headers["X-Service-Key"].ToString();
+            if (string.IsNullOrEmpty(expected) || provided != expected)
+                return StatusCode(StatusCodes.Status401Unauthorized,
+                    new { code = "UNAUTHORIZED", message = "Invalid or missing service key" });
+            return null;
+        }
+
         [HttpPost("moderation")]
         public async Task<IActionResult> ApplyDecision(
             [FromBody] ModerationDecisionRequest request, CancellationToken ct)
         {
+            var auth = CheckServiceKey();
+            if (auth is not null) return auth;
+
             var command = new ApplyModerationDecisionCommand(
                 IdempotencyKey: request.IdempotencyKey,
                 ProductId: request.ProductId,
@@ -28,9 +45,8 @@ namespace B2B.Api.Controllers
                 HardBlock: request.HardBlock,
                 BlockingReason: request.BlockingReason,
                 FieldReports: request.FieldReports);
-
             await _mediator.Send(command, ct);
-            return Ok();   // 200, тело не требуется
+            return Ok(new { ok = true });
         }
     }
 }

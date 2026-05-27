@@ -15,6 +15,7 @@ namespace B2B.Application.Products.Queries.ListProducts
         ProductStatus? Status,
         bool IncludeDeleted,
         int Limit,
-        int Offset
+        int Offset, 
+        string? Search
     ) : IRequest<PagedResult<ProductShortDto>>;
 }

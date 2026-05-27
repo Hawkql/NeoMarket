@@ -82,8 +82,7 @@ builder.Services.AddAuthorization(options =>
     {
         policy.AddAuthenticationSchemes(
             B2B.Api.Authentication.ServiceKeyAuthenticationOptions.SchemeName);
-        policy.RequireAssertion(ctx =>
-            ctx.User.HasClaim(c => c.Type == "scope" && c.Value == "service"));
+        policy.RequireAuthenticatedUser();   // только факт успешной аутентификации по ServiceKey
     });
     options.AddPolicy("AdminOnly", policy =>
     {

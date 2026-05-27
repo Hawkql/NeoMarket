@@ -48,7 +48,8 @@ namespace B2B.Application.Products.Commands.UpdateProduct
 
             // IDOR: чужой товар → 404 (не раскрываем существование)
             if (product.SellerId != request.SellerId)
-                throw new DomainException("Product not found", "NOT_FOUND");
+                throw new DomainException(
+                    "Product does not belong to the authenticated seller", "NOT_OWNER");
 
             // PATCH-merge: неизменённые поля берём из текущего состояния
             var newTitle = request.Title ?? product.Title;

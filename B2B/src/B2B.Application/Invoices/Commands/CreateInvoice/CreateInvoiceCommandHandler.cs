@@ -7,6 +7,7 @@ using B2B.Application.Common.Abstractions;
 using B2B.Application.Invoices.Dtos;
 using B2B.Domain.Common;
 using B2B.Domain.Invoices;
+using B2B.Domain.Products;
 using B2B.Domain.Skus;
 using MediatR;
 
@@ -35,21 +36,22 @@ namespace B2B.Application.Invoices.Commands.CreateInvoice
         {
             var skuIds = request.Items.Select(i => i.SkuId).Distinct().ToList();
 
-            // Ownership (US-06): каждый SKU должен принадлежать товару этого продавца
-            var ownership = await _skuRepository.GetSellerIdsBySkuIdsAsync(skuIds, ct);
+            // US-06: ownership + статус товара одним запросом
+            var info = await _skuRepository.GetOwnerAndStatusBySkuIdsAsync(skuIds, ct);
 
             foreach (var skuId in skuIds)
             {
-                if (!ownership.TryGetValue(skuId, out var ownerSellerId))
-                    throw new DomainException(
-                        $"SKU {skuId} not found", "INVALID_REQUEST");
+                if (!info.TryGetValue(skuId, out var data))
+                    throw new DomainException("SKU not found", "NOT_FOUND");
 
-                if (ownerSellerId != request.SellerId)
-                    // Чужой SKU — не раскрываем владельца, отдаём как невалидный запрос
+                if (data.SellerId != request.SellerId)
                     throw new DomainException(
-                        $"SKU {skuId} does not belong to seller", "FORBIDDEN");
+                        "One or more SKUs do not belong to the authenticated seller", "NOT_OWNER");
+
+                if (data.ProductStatus != ProductStatus.Moderated)
+                    throw new DomainException(
+                        "Invoice can only be created for MODERATED products", "INVALID_REQUEST");
             }
-
             // Aggregate Factory: дубли SKU, quantity>0 проверяются внутри Create
             var invoice = Invoice.Create(
                 request.SellerId,

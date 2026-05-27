@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using B2B.Domain.Products;
 using B2B.Domain.Skus;
 using Microsoft.EntityFrameworkCore;
 
@@ -101,7 +102,29 @@ namespace B2B.Infrastructure.Persistence.Repositories
         {
             await _dbContext.Skus.AddAsync(sku, ct);
         }
+        public async Task<IReadOnlyDictionary<Guid, (int SkusCount, int TotalActiveQuantity)>>
+    GetSkuStatsByProductIdsAsync(IEnumerable<Guid> productIds, CancellationToken ct)
+        {
+            var ids = productIds.Distinct().ToArray();
+            if (ids.Length == 0)
+                return new Dictionary<Guid, (int, int)>();
 
+            var rows = await _dbContext.Skus
+                .AsNoTracking()
+                .Where(s => ids.Contains(s.ProductId) && !s.Deleted)
+                .GroupBy(s => s.ProductId)
+                .Select(g => new
+                {
+                    ProductId = g.Key,
+                    SkusCount = g.Count(),
+                    TotalActive = g.Sum(x => x.ActiveQuantity)
+                })
+                .ToListAsync(ct);
+
+            return rows.ToDictionary(
+                r => r.ProductId,
+                r => (r.SkusCount, r.TotalActive));
+        }
         public void Remove(Sku sku)
         {
             _dbContext.Skus.Remove(sku);
@@ -117,6 +140,27 @@ namespace B2B.Infrastructure.Persistence.Repositories
                 .AsNoTracking()
                 .Where(s => ids.Contains(s.ProductId) && !s.Deleted)
                 .ToListAsync(ct);
+
+
+        }
+        public async Task<IReadOnlyDictionary<Guid, (Guid SellerId, ProductStatus ProductStatus)>>
+    GetOwnerAndStatusBySkuIdsAsync(IEnumerable<Guid> skuIds, CancellationToken ct)
+        {
+            var ids = skuIds.Distinct().ToArray();
+            if (ids.Length == 0)
+                return new Dictionary<Guid, (Guid, ProductStatus)>();
+
+            var rows = await (
+                from sku in _dbContext.Skus.AsNoTracking()
+                where ids.Contains(sku.Id) && !sku.Deleted
+                join product in _dbContext.Products.AsNoTracking()
+                    on sku.ProductId equals product.Id
+                select new { sku.Id, product.SellerId, product.Status })
+                .ToListAsync(ct);
+
+            return rows.ToDictionary(
+                r => r.Id,
+                r => (r.SellerId, r.Status));
         }
     }
 }
