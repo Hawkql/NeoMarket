@@ -31,18 +31,34 @@ namespace B2B.Application.Skus.Commands.DeleteSku
         public async Task Handle(DeleteSkuCommand request, CancellationToken ct)
         {
             var sku = await _skuRepository.GetByIdAsync(request.SkuId, ct);
-
             if (sku is null || sku.Deleted)
                 throw new DomainException("SKU not found", "NOT_FOUND");
 
-            // Ownership через товар
             var product = await _productRepository.GetByIdAsync(sku.ProductId, ct);
-            if (product is null || product.SellerId != request.SellerId)
+            if (product is null)
                 throw new DomainException("SKU not found", "NOT_FOUND");
 
-            // Доменная защита: при reserved_quantity > 0 бросит CONFLICT → 409.
-            // soft-delete + SkuDeletedEvent.
+            // чужой → 403 NOT_OWNER
+            if (product.SellerId != request.SellerId)
+                throw new DomainException(
+                    "SKU does not belong to the authenticated seller", "NOT_OWNER");
+
+            // HARD_BLOCKED → 403 FORBIDDEN
+            product.EnsureCanDeleteSku();
+
+            // живые SKU до удаления (для условия «последний»)
+            var liveSkusBefore = await _skuRepository.CountByProductIdAsync(product.Id, ct);
+
+            // reserved>0 → 409 CONFLICT
             sku.MarkAsDeleted();
+
+            // товар в витрине + был остаток → SKU_OUT_OF_STOCK в B2C
+            if (product.Status == ProductStatus.Moderated)
+                sku.RaiseOutOfStockOnRemoval();
+
+            // последний SKU убрали у товара на модерации → возврат в CREATED
+            if (liveSkusBefore == 1)
+                product.RevertToCreatedOnLastSkuRemoved();
 
             await _unitOfWork.SaveChangesAsync(ct);
         }

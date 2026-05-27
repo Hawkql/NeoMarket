@@ -154,7 +154,15 @@ namespace B2B.Domain.Skus
             Deleted = true;
             RaiseDomainEvent(new SkuDeletedEvent(Id, ProductId));
         }
-
+        /// <summary>
+        /// При удалении SKU из активной витрины (товар MODERATED, был доступный остаток)
+        /// — уведомить B2C, что позиция выбыла. US-12.
+        /// </summary>
+        public void RaiseOutOfStockOnRemoval()
+        {
+            if (ActiveQuantity > 0)
+                RaiseDomainEvent(new SkuOutOfStockEvent(Id, ProductId));
+        }
         private static void ValidateMutableFields(
             string name, int price, int? costPrice, int discount)
         {

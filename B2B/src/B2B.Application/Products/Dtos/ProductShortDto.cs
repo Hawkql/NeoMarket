@@ -16,5 +16,7 @@ namespace B2B.Application.Products.Dtos
     bool Deleted,
     DateTime CreatedAt,
     int? MinPrice,
+    int SkusCount,                
+    int TotalActiveQuantity,
     string? CoverImage);
 }

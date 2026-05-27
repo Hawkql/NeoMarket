@@ -44,8 +44,11 @@ namespace B2B.Application.Skus.Commands.UpdateSku
 
             // Ownership через товар
             var product = await _productRepository.GetByIdAsync(sku.ProductId, ct);
-            if (product is null || product.SellerId != request.SellerId)
+            if (product is null)
                 throw new DomainException("SKU not found", "NOT_FOUND");
+            if (product.SellerId != request.SellerId)
+                throw new DomainException(
+                    "Product does not belong to the authenticated seller", "NOT_OWNER");
 
             // HARD_BLOCKED товар → редактировать SKU нельзя (403)
             product.EnsureCanBeEdited();

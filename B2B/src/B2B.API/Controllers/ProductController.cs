@@ -1,4 +1,5 @@
-﻿using B2B.Api.Contracts;
+﻿using B2B.Api.Authentication;
+using B2B.Api.Contracts;
 using B2B.Application.Common.Abstractions;
 using B2B.Application.Products.Commands.CreateProduct;
 using B2B.Application.Products.Commands.DeleteProduct;
@@ -10,6 +11,8 @@ using B2B.Domain.Products;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using B2B.Application.PublicCatalog.Queries.BatchPublicProducts;
+using B2B.Application.PublicCatalog.Dtos;
 
 namespace B2B.Api.Controllers
 {
@@ -44,12 +47,15 @@ namespace B2B.Api.Controllers
             return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
         }
 
+
         [HttpGet]
+        [RequireServiceKeyHeader(false)]
         public async Task<IActionResult> List(
             [FromQuery] ProductStatus? status,
             [FromQuery(Name = "include_deleted")] bool includeDeleted = false,
             [FromQuery] int limit = 20,
             [FromQuery] int offset = 0,
+            [FromQuery] string? search = null,
             CancellationToken ct = default)
         {
             var query = new ListProductsQuery(
@@ -57,9 +63,38 @@ namespace B2B.Api.Controllers
                 Status: status,
                 IncludeDeleted: includeDeleted,
                 Limit: limit,
-                Offset: offset);
+                Offset: offset,
+                Search: search);
 
             return Ok(await _mediator.Send(query, ct));
+        }
+
+
+        [HttpGet]
+        [RequireServiceKeyHeader(true)]
+        [AllowAnonymous]
+        public async Task<IActionResult> CatalogForB2C(
+    [FromServices] IConfiguration config,
+    [FromQuery] string? ids,
+    CancellationToken ct = default)
+        {
+            // Ручная проверка сервисного ключа (вместо политики ServiceOnly)
+            var expected = config["ServiceKey:Incoming"];
+            var provided = Request.Headers["X-Service-Key"].ToString();
+            if (string.IsNullOrEmpty(expected) || provided != expected)
+                return StatusCode(StatusCodes.Status401Unauthorized,
+                    new { code = "UNAUTHORIZED", message = "Invalid or missing service key" });
+
+            if (string.IsNullOrWhiteSpace(ids))
+                return Ok(Array.Empty<ProductPublicDto>());
+
+            var idList = ids
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(s => Guid.TryParse(s, out var g) ? g : (Guid?)null)
+                .Where(g => g.HasValue).Select(g => g!.Value).ToList();
+
+            var result = await _mediator.Send(new BatchPublicProductsQuery(idList), ct);
+            return Ok(result);
         }
 
         [HttpGet("{id:guid}")]
@@ -70,6 +105,7 @@ namespace B2B.Api.Controllers
         }
 
         [HttpPatch("{id:guid}")]
+        [HttpPut("{id:guid}")]
         public async Task<IActionResult> Update(
             Guid id, [FromBody] UpdateProductRequest request, CancellationToken ct)
         {
@@ -88,7 +124,7 @@ namespace B2B.Api.Controllers
         public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
         {
             await _mediator.Send(new DeleteProductCommand(id, _currentUser.SellerId), ct);
-            return NoContent();
+            return Ok(new { ok = true });
         }
     }
 

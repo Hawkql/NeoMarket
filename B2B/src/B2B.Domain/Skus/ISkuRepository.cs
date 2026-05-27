@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using B2B.Domain.Products;
 
 namespace B2B.Domain.Skus
 {
@@ -39,5 +40,10 @@ namespace B2B.Domain.Skus
         Task<IReadOnlyCollection<Sku>> GetByProductIdsAsync(
             IEnumerable<Guid> productIds, CancellationToken ct);
 
+        Task<IReadOnlyDictionary<Guid, (Guid SellerId, ProductStatus ProductStatus)>>
+    GetOwnerAndStatusBySkuIdsAsync(IEnumerable<Guid> skuIds, CancellationToken ct);
+
+        Task<IReadOnlyDictionary<Guid, (int SkusCount, int TotalActiveQuantity)>>
+                GetSkuStatsByProductIdsAsync(IEnumerable<Guid> productIds, CancellationToken ct);
     }
 }

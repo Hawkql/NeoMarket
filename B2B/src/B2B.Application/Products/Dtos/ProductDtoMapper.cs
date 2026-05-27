@@ -49,7 +49,32 @@ namespace B2B.Application.Products.Dtos
                         Deleted: s.Deleted))
                     .ToList(),
                 CreatedAt: product.CreatedAt,
-                UpdatedAt: product.UpdatedAt);
+                UpdatedAt: product.UpdatedAt,
+                Blocked: product.Blocked,
+                BlockingReason: product.BlockingReason is null
+                    ? null
+                    : new BlockingReasonDto(
+                        product.BlockingReason.ReasonId,
+                        product.BlockingReason.Title,
+                        product.BlockingReason.Comment),
+                FieldReports: product.FieldReports
+                    .OrderBy(fr => fr.ReportedAt)
+                    .Select(fr => new FieldReportDto(
+                        FieldName: MapFieldName(fr.FieldName),
+                        SkuId: fr.SkuId,
+                        Comment: fr.Comment))
+                    .ToList());
         }
+        private static string MapFieldName(FieldReportTarget target) => target switch
+        {
+            FieldReportTarget.Title => "title",
+            FieldReportTarget.Description => "description",
+            FieldReportTarget.ProductImages => "product_images",
+            FieldReportTarget.Category => "category",
+            FieldReportTarget.SkuName => "sku_name",
+            FieldReportTarget.SkuImage => "sku_image",
+            FieldReportTarget.SkuPrice => "sku_price",
+            _ => target.ToString().ToLowerInvariant()
+        };
     }
 }

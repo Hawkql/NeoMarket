@@ -32,7 +32,7 @@ namespace B2B.Domain.Invoices
         private Invoice(Guid id, Guid sellerId) : base(id)
         {
             SellerId = sellerId;
-            Status = InvoiceStatus.Created;
+            Status = InvoiceStatus.Pending;
             AcceptedAt = null;
             AcceptedBy = null;
         }
@@ -91,7 +91,7 @@ namespace B2B.Domain.Invoices
             Guid acceptedBy,
             DateTime acceptedAt)
         {
-            if (Status != InvoiceStatus.Created)
+            if (Status != InvoiceStatus.Pending)
                 throw new DomainException(
                     $"Cannot accept invoice in status {Status}",
                     "INVALID_STATE_TRANSITION");
@@ -128,7 +128,7 @@ namespace B2B.Domain.Invoices
         }
         public void EnsureCanBeDeleted()
         {
-            if (Status != InvoiceStatus.Created)
+            if (Status != InvoiceStatus.Pending)
                 throw new DomainException(
                     $"Cannot delete invoice in status {Status}", "CONFLICT");
         }

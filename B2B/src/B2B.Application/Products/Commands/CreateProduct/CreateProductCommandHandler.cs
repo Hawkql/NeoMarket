@@ -44,8 +44,8 @@ namespace B2B.Application.Products.Commands.CreateProduct
                 throw new DomainException("Category not found", "INVALID_REQUEST");
 
             // 2. Создание агрегата Product через фабрику (вся валидация инвариантов внутри)
-            var characteristics = request.Characteristics
-                .Select(c => new ProductCharacteristic(c.Name, c.Value));
+            var characteristics = (request.Characteristics ?? Enumerable.Empty<CharacteristicInputDto>())
+                            .Select(c => new ProductCharacteristic(c.Name, c.Value));
 
             var product = Product.Create(
                 request.SellerId,

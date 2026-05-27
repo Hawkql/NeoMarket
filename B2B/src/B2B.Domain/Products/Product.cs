@@ -10,7 +10,7 @@ using B2B.Domain.Products.Events;
 namespace B2B.Domain.Products
 {
     // B2B.Domain/Products/Product.cs
-    public class Product : AggregateRoot<Guid>
+    public class Product : AggregateRoot<Guid>, IAuditableEntity
     {
 
         private readonly List<ProductCharacteristic> _characteristics = new();
@@ -42,8 +42,9 @@ namespace B2B.Domain.Products
         public int ModerationRound { get; private set; }
 
         //audit
-        public DateTime CreatedAt { get; private set; }
-        public DateTime UpdatedAt { get; private set; }
+
+        public DateTime CreatedAt { get; set; }
+        public DateTime UpdatedAt { get; set; }
 
         private Product() { }
         private Product(Guid id, Guid sellerId, Guid categoryId,
@@ -94,7 +95,25 @@ namespace B2B.Domain.Products
             if (Status is ProductStatus.Moderated or ProductStatus.Blocked)
                 SentToModeration(ModerationReason.Edited);
         }
+        /// <summary>
+        /// Удалён последний SKU у товара на модерации → возврат в CREATED
+        /// (нет SKU = модерация не нужна). US-12.
+        /// </summary>
+        public void RevertToCreatedOnLastSkuRemoved()
+        {
+            if (Status == ProductStatus.OnModeration)
+                Status = ProductStatus.Created;
+        }
 
+        /// <summary>
+        /// Проверка перед удалением SKU: HARD_BLOCKED запрещает (US-12).
+        /// </summary>
+        public void EnsureCanDeleteSku()
+        {
+            if (Status == ProductStatus.HardBlocked)
+                throw new DomainException(
+                    "Cannot delete SKU of hard-blocked product", "FORBIDDEN");
+        }
         /// <summary>
         /// Проверка, что товар не удалён и не HARD_BLOCKED — операции редактирования
         /// над таким товаром запрещены.

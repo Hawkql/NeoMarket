@@ -22,9 +22,14 @@ namespace B2B.Application.Products.Dtos
        IReadOnlyList<CharacteristicDto> Characteristics,
        IReadOnlyList<SkuDto> Skus,
        DateTime CreatedAt,
-       DateTime UpdatedAt);
+       DateTime UpdatedAt,
+       bool Blocked,
+       BlockingReasonDto? BlockingReason,
+       IReadOnlyList<FieldReportDto> FieldReports);
 
     public sealed record ImageDto(Guid Id, string Url, int Ordering);
     public sealed record CharacteristicDto(Guid Id, string Name, string Value);
+    public sealed record BlockingReasonDto(Guid Id, string Title, string? Comment);
+    public sealed record FieldReportDto(string FieldName, Guid? SkuId, string Comment);
 }
    

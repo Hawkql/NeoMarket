@@ -55,9 +55,9 @@ namespace B2B.Application.Skus.Commands.СreateSku
                 .Select(i => i.Url)
                 .FirstOrDefault() ?? string.Empty;
 
-            var characteristics = request.Characteristics
-                .Select(c => new SkuCharacteristic(c.Name, c.Value))
-                .ToList();
+            var characteristics = (request.Characteristics ?? Enumerable.Empty<SkuCharacteristicInputDto>())
+                     .Select(c => new SkuCharacteristic(c.Name, c.Value))
+                     .ToList();
 
             var sku = Sku.Create(
                 productId: request.ProductId,

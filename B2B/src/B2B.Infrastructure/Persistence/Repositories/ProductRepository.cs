@@ -24,30 +24,36 @@ namespace B2B.Infrastructure.Persistence.Repositories
             // ProductCharacteristics — OwnsMany, тоже автоматически.
             // FieldReports — отдельная таблица, нужен явный Include.
             return await _dbContext.Products
-                .Include("_fieldReports")        // backing field — приватная коллекция
+                .Include(p => p.FieldReports)    // типизированный Include по навигации
                 .AsSplitQuery()
                 .FirstOrDefaultAsync(p => p.Id == id, ct);
         }
 
         public async Task<(IReadOnlyCollection<Product> Items, int Total)> GetBySellerAsync(
-            Guid sellerId,
-            ProductStatus? statusFilter,
-            bool includeDeleted,
-            int limit,
-            int offset,
-            CancellationToken ct)
+    Guid sellerId,
+    ProductStatus? statusFilter,
+    bool includeDeleted,
+    int limit,
+    int offset,
+    string? search,
+    CancellationToken ct)
         {
-            // Фильтр по seller (IDOR: seller_id из JWT)
             var query = _dbContext.Products
                 .AsNoTracking()
                 .Where(p => p.SellerId == sellerId);
 
-            // По умолчанию удалённые скрыты, если явно не запрошены
             if (!includeDeleted)
                 query = query.Where(p => !p.Deleted);
 
             if (statusFilter.HasValue)
                 query = query.Where(p => p.Status == statusFilter.Value);
+
+            // Поиск по названию, регистронезависимый (US-11 search_by_title_case_insensitive)
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var pattern = $"%{search.Trim()}%";
+                query = query.Where(p => EF.Functions.ILike(p.Title, pattern));
+            }
 
             var total = await query.CountAsync(ct);
 

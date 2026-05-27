@@ -19,6 +19,7 @@ namespace B2B.Domain.Products
             bool includeDeleted,
             int limit,
             int offset,
+            string? search,
             CancellationToken ct);
 
         Task<IReadOnlyCollection<Product>> GetPublicByIdsAsync(

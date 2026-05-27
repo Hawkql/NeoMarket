@@ -66,6 +66,7 @@ namespace B2B.Api.Controllers
 
         // PATCH /api/v1/skus/{id}
         [HttpPatch("skus/{id:guid}")]
+        [HttpPut("skus/{id:guid}")]
         public async Task<IActionResult> Update(
             Guid id, [FromBody] UpdateSkuRequest request, CancellationToken ct)
         {
@@ -87,7 +88,7 @@ namespace B2B.Api.Controllers
         public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
         {
             await _mediator.Send(new DeleteSkuCommand(id, _currentUser.SellerId), ct);
-            return NoContent();
+            return Ok(new { ok = true });
         }
     }
 }
