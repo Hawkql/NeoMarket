@@ -83,12 +83,12 @@ namespace B2C.Api.Tests.B2BEvents
                 },
             };
 
-            var first = await serviceClient.PostAsJsonAsync("/api/v1/b2b/events", eventBody);
+            var first = await serviceClient.PostAsJsonAsync("/api/v1/events/product", eventBody);
             first.StatusCode.Should().Be(HttpStatusCode.OK,
                 await first.Content.ReadAsStringAsync());
 
             // 3. Повторное событие с тем же ключом.
-            var second = await serviceClient.PostAsJsonAsync("/api/v1/b2b/events", eventBody);
+            var second = await serviceClient.PostAsJsonAsync("/api/v1/events/product", eventBody);
             second.StatusCode.Should().Be(HttpStatusCode.OK,
                 "повторное событие — не ошибка, idempotent");
 
@@ -117,7 +117,7 @@ namespace B2C.Api.Tests.B2BEvents
         {
             var client = _factory.CreateClient();   // без X-Service-Key
 
-            var resp = await client.PostAsJsonAsync("/api/v1/b2b/events", new
+            var resp = await client.PostAsJsonAsync("/api/v1/events/product", new
             {
                 idempotency_key = Guid.NewGuid(),
                 event_type = "product_blocked",
@@ -154,7 +154,7 @@ namespace B2C.Api.Tests.B2BEvents
                 new { sku_id = skuOtherId, quantity = 1 });
 
             var serviceClient = CreateServiceClient();
-            await serviceClient.PostAsJsonAsync("/api/v1/b2b/events", new
+            await serviceClient.PostAsJsonAsync("/api/v1/events/product", new
             {
                 idempotency_key = Guid.NewGuid(),
                 event_type = "sku_out_of_stock",

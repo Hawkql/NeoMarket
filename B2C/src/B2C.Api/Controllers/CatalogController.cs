@@ -26,52 +26,6 @@ namespace B2C.Api.Controllers
 
         public CatalogController(IMediator mediator) => _mediator = mediator;
 
-        /// <summary>
-        /// US-CAT-01/02: список товаров с фильтрами, поиском, сортировкой, пагинацией.
-        /// Фильтры — динамические query-параметры filter[slug]=value, собираем из Request.Query.
-        /// </summary>
-        [HttpGet("products")]
-        public async Task<IActionResult> ListProducts(
-            [FromQuery] Guid? categoryId,
-            [FromQuery] string? search,
-            [FromQuery] int? minPrice,
-            [FromQuery] int? maxPrice,
-            [FromQuery] string sort = "rating",
-            [FromQuery] int limit = 20,
-            [FromQuery] int offset = 0,
-            CancellationToken ct = default)
-        {
-            var filters = ExtractDynamicFilters();
-
-            var result = await _mediator.Send(new ListCatalogProductsQuery(
-                categoryId,
-                search,
-                filters,
-                minPrice,
-                maxPrice,
-                ParseSort(sort),
-                limit,
-                offset), ct);
-
-            return Ok(result);
-        }
-
-        /// <summary>US-CAT-03: карточка товара.</summary>
-        [HttpGet("products/{productId:guid}")]
-        public async Task<IActionResult> GetProduct(Guid productId, CancellationToken ct)
-        {
-            var product = await _mediator.Send(new GetProductDetailQuery(productId), ct);
-            return Ok(product);
-        }
-
-        /// <summary>US-CAT-04: похожие товары.</summary>
-        [HttpGet("products/{productId:guid}/similar")]
-        public async Task<IActionResult> GetSimilar(
-            Guid productId, [FromQuery] int limit = 10, CancellationToken ct = default)
-        {
-            var similar = await _mediator.Send(new GetSimilarProductsQuery(productId, limit), ct);
-            return Ok(similar);
-        }
 
         /// <summary>US-CAT-05: дерево категорий.</summary>
         [HttpGet("categories")]
@@ -141,15 +95,6 @@ namespace B2C.Api.Controllers
             return result.Count > 0 ? result : null;
         }
 
-        private static CatalogSortDto ParseSort(string sort) => sort.ToLowerInvariant() switch
-        {
-            "rating" => CatalogSortDto.Rating,
-            "popularity" => CatalogSortDto.Popularity,
-            "price_asc" => CatalogSortDto.PriceAsc,
-            "price_desc" => CatalogSortDto.PriceDesc,
-            "date_desc" => CatalogSortDto.DateDesc,
-            "discount_desc" => CatalogSortDto.DiscountDesc,
-            _ => CatalogSortDto.Rating,
-        };
+       
     }
 }

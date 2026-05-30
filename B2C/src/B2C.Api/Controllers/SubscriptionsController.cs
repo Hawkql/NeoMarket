@@ -36,7 +36,7 @@ namespace B2C.Api.Controllers
         {
             await _mediator.Send(new SubscribeCommand(
                 productId, ParseNotifyOn(request.NotifyOn)), ct);
-            return NoContent();
+            return StatusCode(StatusCodes.Status201Created);
         }
 
         [HttpPatch("{productId:guid}")]

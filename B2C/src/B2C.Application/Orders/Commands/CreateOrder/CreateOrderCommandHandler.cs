@@ -78,16 +78,25 @@ namespace B2C.Application.Orders.Commands.CreateOrder
 
             if (!reserveResult.Success)
             {
-                // 4b. Reserve упал — заказ не создаётся. Детализация в сообщении.
-                var failDetails = string.Join("; ", reserveResult.FailedItems.Select(
-                    f => $"sku {f.SkuId}: requested {f.Requested}, available {f.Available} ({f.Reason})"));
-
+                // US-ORD-01: 409 RESERVE_FAILED с детализацией по каждой непрошедшей позиции.
                 _logger.LogWarning(
-                    "Reserve failed for buyer {BuyerId}, key {Key}: {Details}",
-                    buyerId, request.IdempotencyKey, failDetails);
+                    "Reserve failed for buyer {BuyerId}, key {Key}, {Count} failed items",
+                    buyerId, request.IdempotencyKey, reserveResult.FailedItems.Count);
+
+                var failedItems = reserveResult.FailedItems
+                    .Select(f => new
+                    {
+                        sku_id = f.SkuId,
+                        requested = f.Requested,
+                        available = f.Available,
+                        reason = f.Reason.ToString().ToLowerInvariant(),
+                    })
+                    .ToList();
 
                 throw new DomainException(
-                    $"Cannot reserve items: {failDetails}", "CONFLICT");
+                    "Cannot reserve some items",
+                    "RESERVE_FAILED",
+                    details: new { failed_items = failedItems });
             }
 
             // 4a. Reserve OK — создаём Order со снимком цен.

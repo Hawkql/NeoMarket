@@ -49,10 +49,10 @@ namespace B2C.Api.Tests.Favorites
             SeedProduct(productId);
 
             var add1 = await client.PostAsync($"/api/v1/favorites/{productId}", content: null);
-            add1.StatusCode.Should().Be(HttpStatusCode.NoContent);
+            add1.StatusCode.Should().Be(HttpStatusCode.Created);
 
             var add2 = await client.PostAsync($"/api/v1/favorites/{productId}", content: null);
-            add2.StatusCode.Should().Be(HttpStatusCode.NoContent,
+            add2.StatusCode.Should().Be(HttpStatusCode.Created,
                 "повторное добавление должно быть идемпотентно");
 
             var listResp = await client.GetAsync("/api/v1/favorites");

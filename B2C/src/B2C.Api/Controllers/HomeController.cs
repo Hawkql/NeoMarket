@@ -59,34 +59,6 @@ namespace B2C.Api.Controllers
             return Ok(collection);
         }
 
-        /// <summary>
-        /// US-CART-04: запись CTR-события (impression/click).
-        /// Public: гости считаются. BuyerId/SessionId берём из контекста, не из тела.
-        /// </summary>
-        [HttpPost("banners/events")]
-        public async Task<IActionResult> RecordBannerEvent(
-            [FromBody] RecordBannerEventRequest request, CancellationToken ct)
-        {
-            // BuyerId — если авторизован; иначе null. SessionId — из заголовка.
-            var buyerId = _currentUser.IsAuthenticated
-                ? _currentUser.BuyerId
-                : (System.Guid?)null;
-
-            await _mediator.Send(new RecordBannerEventCommand(
-                request.BannerId,
-                ParseEventType(request.Type),
-                buyerId,
-                _session.SessionId), ct);
-
-            return NoContent();
-        }
-
-        private static BannerEventType ParseEventType(string type) => type.ToLowerInvariant() switch
-        {
-            "impression" => BannerEventType.Impression,
-            "click" => BannerEventType.Click,
-            _ => throw new DomainException(
-                $"Unknown banner event type: {type}", "INVALID_REQUEST"),
-        };
+        
     }
 }

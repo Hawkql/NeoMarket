@@ -31,12 +31,20 @@ namespace B2C.Api.Middleware
             catch (DomainException ex)
             {
                 var status = MapDomainCodeToStatus(ex.Code);
-                await WriteError(context, status, ex.Code, ex.Message ?? "Domain error");
+                await WriteError(context, status, ex.Code, ex.Message ?? "Domain error", ex.Details);
             }
             catch (UnauthorizedAccessException)
             {
                 await WriteError(context, StatusCodes.Status401Unauthorized,
                     "UNAUTHORIZED", "Authentication required");
+            }
+            catch (HttpRequestException ex)
+            {
+                // Сетевой fail к B2B / любому HTTP-зависимому ресурсу — Service Unavailable.
+                // Семантически точнее 500: это не наша ошибка, а недоступность зависимости.
+                _logger.LogWarning(ex, "Upstream HTTP dependency unavailable");
+                await WriteError(context, StatusCodes.Status503ServiceUnavailable,
+                    "B2B_UNAVAILABLE", "Upstream service is temporarily unavailable");
             }
             catch (Exception ex)
             {
@@ -54,29 +62,40 @@ namespace B2C.Api.Middleware
             "FORBIDDEN" => StatusCodes.Status403Forbidden,
             "CONFLICT" => StatusCodes.Status409Conflict,
             "UNAUTHORIZED" => StatusCodes.Status401Unauthorized,
-            "UNPROCESSABLE_ENTITY" => StatusCodes.Status422UnprocessableEntity,
-           
-            // Специфичные семантические коды — фронт различает по коду в теле ответа,
-            // HTTP-статус задан здесь явно.
-            "BANNER_NOT_FOUND" => StatusCodes.Status400BadRequest,   // US-CART-04
-            "PRODUCT_NOT_FOUND" => StatusCodes.Status404NotFound,    // US-CART-02
-            "ALREADY_SUBSCRIBED" => StatusCodes.Status409Conflict,   // US-CART-02
+
+            // Семантические коды (фронт различает по code в теле ответа).
+            "BANNER_NOT_FOUND" => StatusCodes.Status400BadRequest,    // US-CART-04
+            "PRODUCT_NOT_FOUND" => StatusCodes.Status404NotFound,     // US-CART-02
+            "ALREADY_SUBSCRIBED" => StatusCodes.Status409Conflict,    // US-CART-02
+            "UNPROCESSABLE_ENTITY" => StatusCodes.Status422UnprocessableEntity,  // US-CAT-05
+            "RESERVE_FAILED" => StatusCodes.Status409Conflict,        // US-ORD-01
+            "CANCEL_NOT_ALLOWED" => StatusCodes.Status409Conflict,    // US-ORD-03
+            "B2B_UNAVAILABLE" => StatusCodes.Status503ServiceUnavailable,  // US-ORD-01, CAT-01
 
             _ => StatusCodes.Status400BadRequest,
         };
 
         private static async Task WriteError(
-            HttpContext context, int status, string code, string message)
+            HttpContext context, int status, string code, string message, object? details = null)
         {
-            // Если ответ уже начал писаться — не можем переписать статус, только логируем.
             if (context.Response.HasStarted)
                 return;
 
             context.Response.StatusCode = status;
             context.Response.ContentType = "application/json";
 
-            var payload = JsonSerializer.Serialize(new { code, message });
-            await context.Response.WriteAsync(payload);
+            // Формат: { code, message, details? }
+            // details — опциональный объект (failed_items / current_status / ...).
+            object payload = details is null
+                ? new { code, message }
+                : new { code, message, details };
+
+            // PropertyNamingPolicy = SnakeCaseLower (как в Program.cs) — поля в snake_case.
+            var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+            });
+            await context.Response.WriteAsync(json);
         }
     }
 }

@@ -53,7 +53,7 @@ namespace B2C.Api.Tests.Catalog
                 ReviewsCount: 153));
 
             var client = _factory.CreateClient();
-            var resp = await client.GetAsync($"/api/v1/catalog/products/{productId}");
+            var resp = await client.GetAsync($"/api/v1/products/{productId}");
             var body = await resp.Content.ReadAsStringAsync();
             Console.WriteLine($">>> DETAIL: {body}");
 
@@ -77,7 +77,7 @@ namespace B2C.Api.Tests.Catalog
         public async Task non_existent_product_returns_404()
         {
             var client = _factory.CreateClient();
-            var resp = await client.GetAsync($"/api/v1/catalog/products/{Guid.NewGuid()}");
+            var resp = await client.GetAsync($"/api/v1/products/{Guid.NewGuid()}");
             resp.StatusCode.Should().Be(HttpStatusCode.NotFound);
         }
     }

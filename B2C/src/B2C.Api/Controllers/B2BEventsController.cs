@@ -18,7 +18,7 @@ namespace B2C.Api.Controllers
     /// (discriminator) — как B2B принимал от Moderation один endpoint с status-дискриминатором.
     /// </summary>
     [ApiController]
-    [Route("api/v1/b2b/events")]
+    [Route("api/v1/events/product")]
     [Authorize(Policy = "ServiceOnly")]
     public sealed class B2BEventsController : ControllerBase
     {

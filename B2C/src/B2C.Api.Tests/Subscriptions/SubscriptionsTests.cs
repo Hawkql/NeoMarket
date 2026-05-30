@@ -48,7 +48,7 @@ namespace B2C.Api.Tests.Subscriptions
             var resp = await client.PostAsJsonAsync($"/api/v1/subscriptions/{productId}",
                 new { notify_on = new[] { "in_stock", "price_drop" } });
 
-            resp.StatusCode.Should().Be(HttpStatusCode.NoContent,
+            resp.StatusCode.Should().Be(HttpStatusCode.Created,
                 await resp.Content.ReadAsStringAsync());
 
 
@@ -78,7 +78,7 @@ namespace B2C.Api.Tests.Subscriptions
 
             var first = await client.PostAsJsonAsync($"/api/v1/subscriptions/{productId}",
                 new { notify_on = new[] { "in_stock" } });
-            first.StatusCode.Should().Be(HttpStatusCode.NoContent);
+            first.StatusCode.Should().Be(HttpStatusCode.Created);
 
             var second = await client.PostAsJsonAsync($"/api/v1/subscriptions/{productId}",
                 new { notify_on = new[] { "price_drop" } });

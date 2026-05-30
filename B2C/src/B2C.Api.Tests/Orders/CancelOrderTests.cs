@@ -92,7 +92,7 @@ namespace B2C.Api.Tests.Orders
             resp.StatusCode.Should().Be(HttpStatusCode.Conflict);
 
             var code = JsonDocument.Parse(body).RootElement.GetProperty("code").GetString();
-            code.Should().Be("CONFLICT");
+            code.Should().Be("CANCEL_NOT_ALLOWED");
 
             // КРИТИЧНО: unreserve не должен был вызываться — отказ ДО обращения к B2B.
             // Иначе мы бы напрасно дёргали B2B при заведомо невозможной отмене.

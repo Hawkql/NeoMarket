@@ -39,7 +39,7 @@ namespace B2C.Api.Tests.Catalog
             }
 
             var client = _factory.CreateClient();
-            var resp = await client.GetAsync($"/api/v1/catalog/products/{targetId}/similar?limit=5");
+            var resp = await client.GetAsync($"/api/v1/products/{targetId}/similar?limit=5");
             var body = await resp.Content.ReadAsStringAsync();
             Console.WriteLine($">>> SIMILAR: {body}");
 
@@ -64,7 +64,7 @@ namespace B2C.Api.Tests.Catalog
             _factory.CatalogFake.MapProductToCategory(loneProductId, categoryId);
 
             var client = _factory.CreateClient();
-            var resp = await client.GetAsync($"/api/v1/catalog/products/{loneProductId}/similar?limit=5");
+            var resp = await client.GetAsync($"/api/v1/products/{loneProductId}/similar?limit=5");
 
             resp.StatusCode.Should().Be(HttpStatusCode.OK);
             JsonDocument.Parse(await resp.Content.ReadAsStringAsync())

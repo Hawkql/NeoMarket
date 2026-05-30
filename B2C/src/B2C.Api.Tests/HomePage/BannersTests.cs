@@ -54,7 +54,7 @@ namespace B2C.Api.Tests.HomePage
         {
             var client = _factory.CreateClient();
 
-            var resp = await client.PostAsJsonAsync("/api/v1/home/banners/events", new
+            var resp = await client.PostAsJsonAsync("/api/v1/banner-events", new
             {
                 banner_id = TestData.BannerId,
                 type = "impression",
@@ -73,7 +73,7 @@ namespace B2C.Api.Tests.HomePage
         {
             var client = _factory.CreateClient();
 
-            var resp = await client.PostAsJsonAsync("/api/v1/home/banners/events", new
+            var resp = await client.PostAsJsonAsync("/api/v1/banner-events", new
             {
                 banner_id = Guid.NewGuid(),
                 type = "click",
@@ -94,7 +94,7 @@ namespace B2C.Api.Tests.HomePage
         {
             var client = _factory.CreateClient();
 
-            var resp = await client.PostAsJsonAsync("/api/v1/home/banners/events", new
+            var resp = await client.PostAsJsonAsync("/api/v1/banner-events", new
             {
                 banner_id = TestData.BannerId,
                 type = "scroll",  // не impression и не click

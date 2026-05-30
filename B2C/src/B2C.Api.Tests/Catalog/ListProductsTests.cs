@@ -34,7 +34,7 @@ namespace B2C.Api.Tests.Catalog
                 InStock: true, Rating: 4.5, ReviewsCount: 42));
 
             var client = _factory.CreateClient();
-            var resp = await client.GetAsync("/api/v1/catalog/products");
+            var resp = await client.GetAsync("/api/v1/products");
             var body = await resp.Content.ReadAsStringAsync();
             Console.WriteLine($">>> LIST: {body}");
 
@@ -67,7 +67,7 @@ namespace B2C.Api.Tests.Catalog
             }
 
             var client = _factory.CreateClient();
-            var resp = await client.GetAsync("/api/v1/catalog/products?limit=2&offset=2");
+            var resp = await client.GetAsync("/api/v1/products?limit=2&offset=2");
             var root = JsonDocument.Parse(await resp.Content.ReadAsStringAsync()).RootElement;
 
             resp.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -90,7 +90,7 @@ namespace B2C.Api.Tests.Catalog
                 InStock: true, Rating: null, ReviewsCount: null));
 
             var client = _factory.CreateClient();
-            var resp = await client.GetAsync("/api/v1/catalog/products?sort=price_asc");
+            var resp = await client.GetAsync("/api/v1/products?sort=price_asc");
             var items = JsonDocument.Parse(await resp.Content.ReadAsStringAsync())
                 .RootElement.GetProperty("items");
 
@@ -105,7 +105,7 @@ namespace B2C.Api.Tests.Catalog
         {
             // Каталог пуст.
             var client = _factory.CreateClient();
-            var resp = await client.GetAsync("/api/v1/catalog/products");
+            var resp = await client.GetAsync("/api/v1/products");
 
             resp.StatusCode.Should().Be(HttpStatusCode.OK);
             var items = JsonDocument.Parse(await resp.Content.ReadAsStringAsync())
@@ -125,7 +125,7 @@ namespace B2C.Api.Tests.Catalog
                 Guid.NewGuid(), "Samsung Galaxy", null, 80_00, null, null, true, null, null));
 
             var client = _factory.CreateClient();
-            var resp = await client.GetAsync("/api/v1/catalog/products?search=iPhone");
+            var resp = await client.GetAsync("/api/v1/products?search=iPhone");
             var items = JsonDocument.Parse(await resp.Content.ReadAsStringAsync())
                 .RootElement.GetProperty("items");
 
@@ -143,7 +143,7 @@ namespace B2C.Api.Tests.Catalog
                 Guid.NewGuid(), "Phone", null, 100_00, null, null, true, null, null));
 
             var client = _factory.CreateClient();
-            var resp = await client.GetAsync("/api/v1/catalog/products?search=ZZZZ_nonexistent");
+            var resp = await client.GetAsync("/api/v1/products?search=ZZZZ_nonexistent");
             var items = JsonDocument.Parse(await resp.Content.ReadAsStringAsync())
                 .RootElement.GetProperty("items");
 
@@ -155,7 +155,7 @@ namespace B2C.Api.Tests.Catalog
         public async Task search_less_than_3_chars_returns_400()
         {
             var client = _factory.CreateClient();
-            var resp = await client.GetAsync("/api/v1/catalog/products?search=ab");
+            var resp = await client.GetAsync("/api/v1/products?search=ab");
             var body = await resp.Content.ReadAsStringAsync();
             Console.WriteLine($">>> SEARCH SHORT: {resp.StatusCode} BODY: {body}");
 

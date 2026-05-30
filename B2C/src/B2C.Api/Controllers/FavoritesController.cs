@@ -32,7 +32,7 @@ namespace B2C.Api.Controllers
         public async Task<IActionResult> AddFavorite(Guid productId, CancellationToken ct)
         {
             await _mediator.Send(new AddFavoriteCommand(productId), ct);
-            return NoContent();
+            return StatusCode(StatusCodes.Status201Created);
         }
 
         /// <summary>Удалить из избранного (идемпотентно).</summary>

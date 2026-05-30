@@ -45,8 +45,9 @@ namespace B2C.Application.Orders.Commands.CancelOrder
             //  Чтобы не делать лишний unreserve на невалидном статусе, добавим публичный guard в Domain.)
             if (!order.CanBeCancelled)
                 throw new DomainException(
-                    $"Order in status {order.Status} cannot be cancelled", "CONFLICT");
-
+                    $"Order in status {order.Status} cannot be cancelled",
+                    "CANCEL_NOT_ALLOWED",
+                    details: new { current_status = order.Status.ToString().ToLowerInvariant() });
             // Детерминированный ключ из order_id — для идемпотентного retry.
             var unreserveKey = IdempotencyKeyFactory.FromParts("unreserve", order.Id.ToString());
 
