@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.10.0" />
+		<PackageReference Include="xunit" Version="2.9.0" />
+		<PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+		<PackageReference Include="FluentAssertions" Version="6.12.0" />
+
+		<!-- Реальный PostgreSQL в контейнере для интеграционных тестов -->
+		<PackageReference Include="Testcontainers.PostgreSql" Version="3.10.0" />
+
+		<!-- WebApplicationFactory<Program> для in-memory pipeline -->
+		<PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.8" />
+	</ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Auth\" />
+    <Folder Include="Cart\" />
+    <Folder Include="Favorites\" />
+    <Folder Include="Orders\" />
+    <Folder Include="B2BEvents\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\B2C.Api\B2C.Api.csproj" />
+    <ProjectReference Include="..\..\src\B2C.Application\B2C.Application.csproj" />
+    <ProjectReference Include="..\..\src\B2C.Domain\B2C.Domain.csproj" />
+    <ProjectReference Include="..\..\src\B2C.Infrastructure\B2C.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>
