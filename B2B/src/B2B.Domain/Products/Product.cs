@@ -95,14 +95,19 @@ namespace B2B.Domain.Products
             if (Status is ProductStatus.Moderated or ProductStatus.Blocked)
                 SentToModeration(ModerationReason.Edited);
         }
+
         /// <summary>
         /// Удалён последний SKU у товара на модерации → возврат в CREATED
         /// (нет SKU = модерация не нужна). US-12.
+        /// Поднимает ProductRemovedFromModerationEvent — Moderation закроет заявку.
         /// </summary>
         public void RevertToCreatedOnLastSkuRemoved()
         {
-            if (Status == ProductStatus.OnModeration)
-                Status = ProductStatus.Created;
+            if (Status != ProductStatus.OnModeration)
+                return;
+
+            Status = ProductStatus.Created;
+            RaiseDomainEvent(new ProductRemovedFromModerationEvent(Id, SellerId));
         }
 
         /// <summary>
@@ -180,7 +185,20 @@ namespace B2B.Domain.Products
         }
 
 
+        public void OnSkuAdded(bool isFirstSku)
+        {
+            if (Status == ProductStatus.Created && isFirstSku)
+            {
+                SentToModeration(ModerationReason.FirstSkuAdded);
+                return;
+            }
 
+            if (Status is ProductStatus.Moderated or ProductStatus.Blocked)
+            {
+                SentToModeration(ModerationReason.Edited);
+            }
+            // ON_MODERATION → ничего не делаем
+        }
         //Отправка на модерацию
 
         public void SendToModerationOnFirstSku()

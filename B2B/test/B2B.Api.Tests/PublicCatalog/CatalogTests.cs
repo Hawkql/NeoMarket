@@ -88,7 +88,7 @@ namespace B2B.Api.Tests.PublicCatalog
             var db = scope.ServiceProvider.GetRequiredService<B2BDbContext>();
             var product = await db.Products.Include(p => p.FieldReports).FirstAsync(p => p.Id == productId);
             product.HardBlock(
-                new BlockingReason(Guid.NewGuid(), "bad", "x"),
+                new BlockingReason(Guid.NewGuid(), "x"),
                 new List<(FieldReportTarget, Guid?, string)>(),
                 new List<Guid>(),
                 DateTime.UtcNow);
@@ -134,9 +134,16 @@ namespace B2B.Api.Tests.PublicCatalog
         [Fact(DisplayName = "catalog_missing_service_key_returns_401")]
         public async Task catalog_missing_service_key_returns_401()
         {
-            var noAuth = _factory.CreateClient();   // ни Bearer, ни X-Service-Key
-            var resp = await noAuth.GetAsync($"/api/v1/products?ids={Guid.NewGuid()}");
+            var client = _factory.CreateClient();
+            var resp = await client.GetAsync("/api/v1/public/products");
+
             resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+
+            // Тело должно быть плоским {code, message} (US-07 fix)
+            var json = await resp.Content.ReadAsStringAsync();
+            var root = JsonDocument.Parse(json).RootElement;
+            root.GetProperty("code").GetString().Should().Be("UNAUTHORIZED");
+            root.GetProperty("message").GetString().Should().NotBeNullOrEmpty();
         }
 
         // ── в ответе нет cost_price ──
@@ -178,5 +185,6 @@ namespace B2B.Api.Tests.PublicCatalog
             ids.Should().Contain(visibleId);
             ids.Should().NotContain(hiddenId, "невидимые товары не возвращаются даже при запросе по id");
         }
+        
     }
 }

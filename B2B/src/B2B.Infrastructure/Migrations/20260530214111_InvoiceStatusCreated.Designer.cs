@@ -3,6 +3,7 @@ using System;
 using B2B.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace B2B.Infrastructure.Migrations
 {
     [DbContext(typeof(B2BDbContext))]
-    partial class B2BDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260530214111_InvoiceStatusCreated")]
+    partial class InvoiceStatusCreated
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -121,44 +124,6 @@ namespace B2B.Infrastructure.Migrations
                             t.HasCheckConstraint("ck_images_entity_type_valid", "entity_type IN ('product', 'sku')");
 
                             t.HasCheckConstraint("ck_images_ordering_non_negative", "ordering >= 0");
-                        });
-                });
-
-            modelBuilder.Entity("B2B.Domain.Inventory.InventoryReservation", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamptz")
-                        .HasColumnName("created_at");
-
-                    b.Property<Guid>("OrderId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("order_id");
-
-                    b.Property<int>("Quantity")
-                        .HasColumnType("integer")
-                        .HasColumnName("quantity");
-
-                    b.Property<Guid>("SkuId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("sku_id");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OrderId")
-                        .HasDatabaseName("ix_inventory_reservations_order");
-
-                    b.HasIndex("OrderId", "SkuId")
-                        .IsUnique()
-                        .HasDatabaseName("ux_inventory_reservations_order_sku");
-
-                    b.ToTable("inventory_reservations", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_inventory_reservations_quantity_positive", "quantity > 0");
                         });
                 });
 
@@ -715,6 +680,7 @@ namespace B2B.Infrastructure.Migrations
                                 .HasColumnType("uuid");
 
                             b1.Property<string>("Comment")
+                                .IsRequired()
                                 .HasMaxLength(2000)
                                 .HasColumnType("character varying(2000)")
                                 .HasColumnName("blocking_reason_comment");
@@ -722,6 +688,12 @@ namespace B2B.Infrastructure.Migrations
                             b1.Property<Guid>("ReasonId")
                                 .HasColumnType("uuid")
                                 .HasColumnName("blocking_reason_reason_id");
+
+                            b1.Property<string>("Title")
+                                .IsRequired()
+                                .HasMaxLength(255)
+                                .HasColumnType("character varying(255)")
+                                .HasColumnName("blocking_reason_title");
 
                             b1.HasKey("ProductId");
 

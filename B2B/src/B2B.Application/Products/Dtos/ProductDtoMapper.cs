@@ -1,8 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using B2B.Application.Skus.Dtos;
 using B2B.Domain.Images;
 using B2B.Domain.Products;
 using B2B.Domain.Skus;
@@ -14,8 +13,11 @@ namespace B2B.Application.Products.Dtos
         public static ProductDto Map(
             Product product,
             IReadOnlyCollection<Image> productImages,
-            IReadOnlyCollection<Sku> skus)
+            IReadOnlyCollection<Sku> skus,
+            IReadOnlyDictionary<Guid, IReadOnlyCollection<Image>>? skuImages = null)
         {
+            skuImages ??= new Dictionary<Guid, IReadOnlyCollection<Image>>();
+
             return new ProductDto(
                 Id: product.Id,
                 SellerId: product.SellerId,
@@ -36,27 +38,13 @@ namespace B2B.Application.Products.Dtos
                     .ToList(),
                 Skus: skus
                     .Where(s => !s.Deleted)
-                    .Select(s => new SkuDto(
-                        Id: s.Id,
-                        ProductId: s.ProductId,
-                        Name: s.Name,
-                        Price: s.Price,
-                        CostPrice: s.CostPrice??0,
-                        Discount: s.Discount,
-                        ImageUrl: s.ImageUrl,
-                        ActiveQuantity: s.ActiveQuantity,
-                        ReservedQuantity: s.ReservedQuantity,
-                        Deleted: s.Deleted))
+                    .Select(s => SkuDtoMapper.Map(
+                        s,
+                        skuImages.TryGetValue(s.Id, out var imgs) ? imgs : Array.Empty<Image>()))
                     .ToList(),
                 CreatedAt: product.CreatedAt,
                 UpdatedAt: product.UpdatedAt,
                 Blocked: product.Blocked,
-                BlockingReason: product.BlockingReason is null
-                    ? null
-                    : new BlockingReasonDto(
-                        product.BlockingReason.ReasonId,
-                        product.BlockingReason.Title,
-                        product.BlockingReason.Comment),
                 FieldReports: product.FieldReports
                     .OrderBy(fr => fr.ReportedAt)
                     .Select(fr => new FieldReportDto(
@@ -65,6 +53,7 @@ namespace B2B.Application.Products.Dtos
                         Comment: fr.Comment))
                     .ToList());
         }
+
         private static string MapFieldName(FieldReportTarget target) => target switch
         {
             FieldReportTarget.Title => "title",

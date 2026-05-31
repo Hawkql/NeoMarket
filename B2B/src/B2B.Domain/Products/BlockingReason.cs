@@ -1,28 +1,26 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using B2B.Domain.Common;
+﻿using B2B.Domain.Common;
 
 namespace B2B.Domain.Products
 {
+    /// <summary>
+    /// Owned Value Object. Хранится в колонках product.blocking_reason_reason_id
+    /// и product.blocking_reason_comment. Title не хранится — по OpenAPI
+    /// (ProductResponse, ModerationEventRequest) поля title нет; список причин —
+    /// зона ответственности Moderation-сервиса.
+    /// </summary>
     public class BlockingReason
     {
         public Guid ReasonId { get; set; }
-        public string Title { get; set; } = null!;
-        public string Comment { get; set; } = null!;
+        public string? Comment { get; set; }
 
         public BlockingReason() { }
-        public BlockingReason(Guid id,string title,string comment) 
-        {
-            if(id== Guid.Empty)
-                throw new DomainException("BlockingReason id is required", "INVALID_REQUEST");
-            if (string.IsNullOrWhiteSpace(title))
-                throw new DomainException("BlockingReason title is required", "INVALID_REQUEST");
 
-            ReasonId = id;
-            Title = title;
+        public BlockingReason(Guid reasonId, string? comment)
+        {
+            if (reasonId == Guid.Empty)
+                throw new DomainException("BlockingReason id is required", "INVALID_REQUEST");
+
+            ReasonId = reasonId;
             Comment = comment;
         }
     }

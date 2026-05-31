@@ -1,6 +1,7 @@
 version: '3.8'
 
 services:
+  # ===================== B2B =====================
   postgres:
     image: postgres:16-alpine
     container_name: b2b-postgres
@@ -22,8 +23,8 @@ services:
     image: minio/minio:latest
     container_name: b2b-minio
     ports:
-      - "9000:9000"   # S3 API
-      - "9001:9001"   # Web UI
+      - "9000:9000"
+      - "9001:9001"
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
@@ -36,8 +37,6 @@ services:
       timeout: 5s
       retries: 10
 
-  # Создаём bucket автоматически при первом запуске.
-  # Иначе нужно вручную через MinIO Console (http://localhost:9001).
   minio-init:
     image: minio/mc:latest
     container_name: b2b-minio-init
@@ -77,6 +76,59 @@ services:
       B2c__BaseUrl: "http://b2c:8080"
       B2c__ServiceKey: "b2c-secret-key-dev"
 
+  # ===================== B2C =====================
+  b2c-postgres:
+    image: postgres:16-alpine
+    container_name: b2c-postgres
+    ports:
+      - "5433:5432"          # на хосте 5433, чтобы не пересечься с b2b-postgres (5432)
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123456789
+      POSTGRES_DB: b2c
+    volumes:
+      - b2c_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d b2c"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  b2c:
+    build:
+      context: ../../B2C/src   # путь от ./b2b_src до ./B2C/src — поправь под свою файловую структуру
+      dockerfile: Dockerfile
+    container_name: b2c-api
+    ports:
+      - "8083:8080"            # 8083 на хосте — appsettings B2B уже ожидает B2C тут
+    depends_on:
+      b2c-postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: "http://+:8080"
+
+      ConnectionStrings__B2CDatabase: "Host=b2c-postgres;Database=b2c;Username=postgres;Password=123456789"
+
+      ApplyMigrationsOnStartup: "true"   # авто-миграция при старте — удобно для dev/compose
+
+      # JWT — свой секрет B2C, не пересекается с B2B (per-service auth).
+      Jwt__Issuer: "neomarket-b2c"
+      Jwt__Audience: "neomarket"
+      Jwt__Secret: "b2c-jwt-signing-key-must-be-at-least-32-chars-long-dev"
+      Jwt__AccessTokenMinutes: "15"
+      Jwt__RefreshTokenDays: "30"
+
+      # Outbound на B2B: внутренний DNS docker-compose, имя сервиса "b2b" + порт контейнера 8080.
+      # ServiceKey — то, что B2B ожидает на входе (его ServiceKey:Incoming).
+      B2BClient__BaseUrl: "http://b2b:8080"
+      B2BClient__ServiceKey: "b2b-incoming-service-key-dev"
+
+      # Inbound от B2B: ключ, который мы ожидаем в X-Service-Key
+      # (должен совпадать с тем, что B2B шлёт через B2c__ServiceKey выше = b2c-secret-key-dev).
+      ServiceKey__Incoming: "b2c-secret-key-dev"
+
 volumes:
   postgres_data:
   minio_data:
+  b2c_postgres_data:

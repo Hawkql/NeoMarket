@@ -73,15 +73,15 @@ namespace B2B.Api.Tests.Invoices
             await db.SaveChangesAsync();
         }
 
-        // ── happy: накладная на MODERATED-SKU → 201, статус PENDING ──
+        // ── happy: накладная на MODERATED-SKU → 201, статус CREATED ──
         [Fact(DisplayName = "create_invoice_with_moderated_sku_returns_201")]
         public async Task create_invoice_with_moderated_sku_returns_201()
         {
             var sellerId = Guid.NewGuid();
             var client = AuthClient(sellerId);
             var productId = await CreateProductAsync(client);
-            var skuId = await CreateSkuAsync(client, productId);  // → OnModeration
-            await ApproveProductAsync(productId);                 // → Moderated
+            var skuId = await CreateSkuAsync(client, productId);
+            await ApproveProductAsync(productId);
 
             var body = new { items = new[] { new { sku_id = skuId, quantity = 10 } } };
             var resp = await client.PostAsJsonAsync("/api/v1/invoices", body);
@@ -89,7 +89,7 @@ namespace B2B.Api.Tests.Invoices
 
             var json = await resp.Content.ReadAsStringAsync();
             var root = JsonDocument.Parse(json).RootElement;
-            root.GetProperty("status").GetString().Should().Be("PENDING");
+            root.GetProperty("status").GetString().Should().Be("CREATED");   
             root.GetProperty("items").GetArrayLength().Should().Be(1);
         }
 

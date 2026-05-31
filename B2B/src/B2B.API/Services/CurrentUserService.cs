@@ -21,19 +21,17 @@ namespace B2B.Api.Services
 
         public bool IsAuthenticated => User?.Identity?.IsAuthenticated ?? false;
 
-        public Guid SellerId
+        private Guid ResolveUserId()
         {
-            get
-            {
-                // 'sub' claim по JWT-спеке = user_id (= seller_id для B2B)
-                var sub = User?.FindFirstValue(ClaimTypes.NameIdentifier)
-                    ?? User?.FindFirstValue("sub");
-
-                return Guid.TryParse(sub, out var id)
-                    ? id
-                    : throw new UnauthorizedAccessException("Invalid or missing sub claim");
-            }
+            var sub = User?.FindFirstValue(ClaimTypes.NameIdentifier)
+                      ?? User?.FindFirstValue("sub");
+            return Guid.TryParse(sub, out var id)
+                ? id
+                : throw new UnauthorizedAccessException("Invalid or missing sub claim");
         }
+
+        public Guid UserId => ResolveUserId();
+        public Guid SellerId => ResolveUserId();   // алиас, семантика "seller"
 
         public string Role =>
             User?.FindFirstValue(ClaimTypes.Role)

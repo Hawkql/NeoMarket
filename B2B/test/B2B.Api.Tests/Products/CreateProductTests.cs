@@ -159,5 +159,62 @@ namespace B2B.Api.Tests.Products
             await db.SaveChangesAsync(CancellationToken.None);
             return category.Id;
         }
+        [Fact(DisplayName = "update_product_response_returns_full_sku_payload")]
+        public async Task update_product_response_returns_full_sku_payload()
+        {
+            var sellerId = Guid.NewGuid();
+            var client = CreateAuthorizedClient(sellerId);
+
+            // Создаём товар
+            var prodBody = new
+            {
+                category_id = TestData.CategoryId,
+                title = "Full",
+                description = "desc",
+                images = new[] { new { url = "/s3/p.jpg", ordering = 0 } },
+                characteristics = Array.Empty<object>()
+            };
+            var prodResp = await client.PostAsJsonAsync("/api/v1/products", prodBody);
+            prodResp.StatusCode.Should().Be(HttpStatusCode.Created);
+            var productId = JsonDocument.Parse(await prodResp.Content.ReadAsStringAsync())
+                .RootElement.GetProperty("id").GetGuid();
+
+            // SKU с полной нагрузкой
+            var skuBody = new
+            {
+                product_id = productId,
+                name = "Black 256",
+                price = 9999900,
+                discount = 0,
+                cost_price = 5000000,
+                article = "ART-FULL",
+                images = new[] { new { url = "/s3/s.jpg", ordering = 0 } },
+                characteristics = new[] { new { name = "Цвет", value = "Чёрный" } }
+            };
+            (await client.PostAsJsonAsync("/api/v1/skus", skuBody))
+                .StatusCode.Should().Be(HttpStatusCode.Created);
+
+            // PUT /products/{id}
+            var updateBody = new { title = "Full v2", description = "updated" };
+            var resp = await client.PutAsJsonAsync($"/api/v1/products/{productId}", updateBody);
+            resp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+            var root = JsonDocument.Parse(await resp.Content.ReadAsStringAsync()).RootElement;
+            var sku = root.GetProperty("skus")[0];
+
+            // Все обязательные поля SKUResponse присутствуют
+            sku.TryGetProperty("stock_quantity", out _).Should().BeTrue();
+            sku.TryGetProperty("article", out var article).Should().BeTrue();
+            article.GetString().Should().Be("ART-FULL");
+            sku.TryGetProperty("characteristics", out var chars).Should().BeTrue();
+            chars.GetArrayLength().Should().BeGreaterThan(0);
+            sku.TryGetProperty("created_at", out _).Should().BeTrue();
+            sku.TryGetProperty("updated_at", out _).Should().BeTrue();
+            sku.TryGetProperty("images", out var imgs).Should().BeTrue();
+            imgs.ValueKind.Should().Be(JsonValueKind.Array, "images должен быть массивом, не скаляром");
+            imgs.GetArrayLength().Should().Be(1);
+            sku.TryGetProperty("image_url", out _).Should()
+                .BeFalse("скалярный image_url убран в пользу images[]");
+        }
     }
 }

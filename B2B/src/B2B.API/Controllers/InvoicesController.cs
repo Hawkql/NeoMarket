@@ -14,7 +14,8 @@ namespace B2B.Api.Controllers
 {
     [ApiController]
     [Route("api/v1/invoices")]
-    [Authorize(Policy = "SellerOnly")]
+    // Классовая политика снята — у Accept-эндпоинта другая роль (admin).
+    // Каждый action явно указывает свою политику.
     public sealed class InvoicesController : ControllerBase
     {
         private readonly IMediator _mediator;
@@ -27,18 +28,19 @@ namespace B2B.Api.Controllers
         }
 
         [HttpPost]
+        [Authorize(Policy = "SellerOnly")]
         public async Task<IActionResult> Create(
             [FromBody] CreateInvoiceRequest request, CancellationToken ct)
         {
             var command = new CreateInvoiceCommand(
                 SellerId: _currentUser.SellerId,
                 Items: request.Items);
-
             var result = await _mediator.Send(command, ct);
             return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
         }
 
         [HttpGet]
+        [Authorize(Policy = "SellerOnly")]
         public async Task<IActionResult> List(
             [FromQuery] InvoiceStatus? status,
             [FromQuery] int limit = 20,
@@ -51,6 +53,7 @@ namespace B2B.Api.Controllers
         }
 
         [HttpGet("{id:guid}")]
+        [Authorize(Policy = "SellerOnly")]
         public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
         {
             var result = await _mediator.Send(
@@ -58,19 +61,21 @@ namespace B2B.Api.Controllers
             return Ok(result);
         }
 
+        // Приёмку выполняет только админ (US-06 — Контракция, ревью).
         [HttpPost("{id:guid}/accept")]
+        [Authorize(Policy = "AdminOnly")]
         public async Task<IActionResult> Accept(
             Guid id, [FromBody] AcceptInvoiceRequest? request, CancellationToken ct)
         {
             var command = new AcceptInvoiceCommand(
                 InvoiceId: id,
-                AcceptedBy: _currentUser.SellerId,           
-                AcceptedItems: request?.AcceptedItems);       
-
+                AcceptedBy: _currentUser.UserId,
+                AcceptedItems: request?.AcceptedItems);
             return Ok(await _mediator.Send(command, ct));
         }
 
         [HttpDelete("{id:guid}")]
+        [Authorize(Policy = "SellerOnly")]
         public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
         {
             await _mediator.Send(new DeleteInvoiceCommand(id, _currentUser.SellerId), ct);

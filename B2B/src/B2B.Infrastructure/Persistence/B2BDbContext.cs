@@ -8,6 +8,7 @@ using B2B.Application.Common.Abstractions;
 using B2B.Domain.Categories;
 using B2B.Domain.Common;
 using B2B.Domain.Images;
+using B2B.Domain.Inventory;
 using B2B.Domain.Invoices;
 using B2B.Domain.Products;
 using B2B.Domain.Sellers;
@@ -43,7 +44,7 @@ namespace B2B.Infrastructure.Persistence
         public DbSet<Image> Images => Set<Image>();
         public DbSet<Category> Categories => Set<Category>();
         public DbSet<Invoice> Invoices => Set<Invoice>();
-
+        public DbSet<InventoryReservation> InventoryReservations => Set<InventoryReservation>();
         // Инфраструктурные таблицы — отдельно от Domain
         public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
         public DbSet<InboxMessage> InboxMessages => Set<InboxMessage>();

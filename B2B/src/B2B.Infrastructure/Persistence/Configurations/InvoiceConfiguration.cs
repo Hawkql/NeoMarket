@@ -61,15 +61,15 @@ namespace B2B.Infrastructure.Persistence.Configurations
 
             // Накладные в статусе Created (для очереди оператора склада)
             builder.HasIndex(i => i.Status)
-                .HasDatabaseName("ix_invoices_status_pending")
-                .HasFilter("status = 'Pending'");
+                .HasDatabaseName("ix_invoices_status_Created")
+                .HasFilter("status = 'Created'");
 
             builder.ToTable(t =>
             {
                 // Если статус не Created — обязательно accepted_at должен быть заполнен
                 t.HasCheckConstraint(
                         "ck_invoices_accepted_at_consistency",
-                        "(status = 'Pending' AND accepted_at IS NULL) OR (status <> 'Pending')");
+                        "(status = 'Created' AND accepted_at IS NULL) OR (status <> 'Created')");
             });
         }
     }
