@@ -3,6 +3,7 @@ using B2B.Application.Common;
 using B2B.Application.Common.Abstractions;
 using B2B.Domain.Categories;
 using B2B.Domain.Images;
+using B2B.Domain.Inventory;
 using B2B.Domain.Invoices;
 using B2B.Domain.Products;
 using B2B.Domain.Sellers;
@@ -68,13 +69,14 @@ namespace B2B.Infrastructure
         // ========================================================================
         private static void AddRepositories(IServiceCollection services)
         {
+            services.AddScoped<IInventoryReservationRepository, InventoryReservationRepository>();
             services.AddScoped<IProductRepository, ProductRepository>();
             services.AddScoped<ISkuRepository, SkuRepository>();
             services.AddScoped<IImageRepository, ImageRepository>();
             services.AddScoped<ICategoryRepository, CategoryRepository>();
             services.AddScoped<IInvoiceRepository, InvoiceRepository>();
-            services.AddScoped<ISellerRepository, SellerRepository>();          // ← добавить
-            services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>(); // ← добавить
+            services.AddScoped<ISellerRepository, SellerRepository>();     
+            services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>(); 
         }
 
         // ========================================================================

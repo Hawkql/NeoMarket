@@ -78,12 +78,18 @@ namespace B2B.Application.Products.Commands.UpdateProduct
 
             await _unitOfWork.SaveChangesAsync(ct);
 
-            // Полный ProductResponse (с актуальными images + skus)
+            // Полный ProductResponse (с актуальными images + skus + skus.images)
             var productImages = await _imageRepository.GetByEntityAsync(
                 ImageEntityType.Product, product.Id, ct);
             var skus = await _skuRepository.GetByProductIdAsync(product.Id, ct);
 
-            return ProductDtoMapper.Map(product, productImages, skus);
+            // Картинки всех SKU одним батчем (без N+1)
+            var skuIds = skus.Where(s => !s.Deleted).Select(s => s.Id).ToList();
+            var skuImages = skuIds.Count > 0
+                ? await _imageRepository.GetByEntitiesAsync(ImageEntityType.Sku, skuIds, ct)
+                : new Dictionary<Guid, IReadOnlyCollection<Image>>();
+
+            return ProductDtoMapper.Map(product, productImages, skus, skuImages);
         }
     }
 }

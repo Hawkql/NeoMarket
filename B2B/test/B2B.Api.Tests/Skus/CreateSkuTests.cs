@@ -156,15 +156,125 @@ namespace B2B.Api.Tests.Skus
                 var product = await db.Products.FirstAsync(p => p.Id == productId);
                 // HardBlock доступен из любого статуса; reports/skuIds пустые
                 product.HardBlock(
-                    new BlockingReason { ReasonId = Guid.NewGuid(), Title = "bad", Comment = "x" },
+                     new BlockingReason(Guid.NewGuid(), "x"),
+                     new List<(FieldReportTarget, Guid?, string)>(),
+                     new List<Guid>(),
+                     DateTime.UtcNow);
+                await db.SaveChangesAsync();
+            }
+
+            var resp = await client.PostAsJsonAsync("/api/v1/skus", ValidSkuBody(productId));
+            resp.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        }
+        [Fact(DisplayName = "add_sku_to_moderated_product_triggers_remoderation")]
+        public async Task add_sku_to_moderated_product_triggers_remoderation()
+        {
+            var sellerId = Guid.NewGuid();
+            var client = AuthClient(sellerId);
+            var productId = await CreateProductAsync(client);
+
+            // Доводим товар до MODERATED: добавили первый SKU (→ ON_MODERATION) + Approve()
+            await client.PostAsJsonAsync("/api/v1/skus", ValidSkuBody(productId));
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<B2BDbContext>();
+                var product = await db.Products.Include(p => p.FieldReports).FirstAsync(p => p.Id == productId);
+                product.Approve();
+                await db.SaveChangesAsync();
+            }
+
+            // Считаем события sent_to_moderation ДО добавления второго SKU
+            int eventsBefore;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<B2BDbContext>();
+                eventsBefore = await db.OutboxMessages.CountAsync(m =>
+                    m.AggregateId == productId && m.EventType == "product.sent_to_moderation.v1");
+            }
+
+            // Добавляем ещё один SKU к MODERATED-товару
+            var secondSku = new
+            {
+                product_id = productId,
+                name = "Second",
+                price = 1000000,
+                discount = 0,
+                cost_price = 500000,
+                article = "ART-2",
+                images = new[] { new { url = "/s3/s2.jpg", ordering = 0 } },
+                characteristics = Array.Empty<object>()
+            };
+            var resp = await client.PostAsJsonAsync("/api/v1/skus", secondSku);
+            resp.StatusCode.Should().Be(HttpStatusCode.Created);
+
+            using var scope2 = _factory.Services.CreateScope();
+            var db2 = scope2.ServiceProvider.GetRequiredService<B2BDbContext>();
+
+            // Статус вернулся на ON_MODERATION
+            var productAfter = await db2.Products.AsNoTracking().FirstAsync(p => p.Id == productId);
+            productAfter.Status.Should().Be(ProductStatus.OnModeration,
+                "изменение состава SKU у MODERATED-товара триггерит повторную модерацию");
+
+            // Появилось новое событие sent_to_moderation
+            var eventsAfter = await db2.OutboxMessages.CountAsync(m =>
+                m.AggregateId == productId && m.EventType == "product.sent_to_moderation.v1");
+            eventsAfter.Should().Be(eventsBefore + 1, "должно появиться новое событие отправки на модерацию");
+        }
+
+        // ── добавление SKU к BLOCKED-товару тоже триггерит повторную модерацию ──
+        [Fact(DisplayName = "add_sku_to_blocked_product_triggers_remoderation")]
+        public async Task add_sku_to_blocked_product_triggers_remoderation()
+        {
+            var sellerId = Guid.NewGuid();
+            var client = AuthClient(sellerId);
+            var productId = await CreateProductAsync(client);
+
+            // CREATED → (первый SKU) → ON_MODERATION → Block() → BLOCKED
+            await client.PostAsJsonAsync("/api/v1/skus", ValidSkuBody(productId));
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<B2BDbContext>();
+                var product = await db.Products.Include(p => p.FieldReports).FirstAsync(p => p.Id == productId);
+                product.Block(
+                    new BlockingReason(Guid.NewGuid(), "x"),
                     new List<(FieldReportTarget, Guid?, string)>(),
                     new List<Guid>(),
                     DateTime.UtcNow);
                 await db.SaveChangesAsync();
             }
 
-            var resp = await client.PostAsJsonAsync("/api/v1/skus", ValidSkuBody(productId));
-            resp.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+            int eventsBefore;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<B2BDbContext>();
+                eventsBefore = await db.OutboxMessages.CountAsync(m =>
+                    m.AggregateId == productId && m.EventType == "product.sent_to_moderation.v1");
+            }
+
+            // Добавляем второй SKU к BLOCKED-товару
+            var second = new
+            {
+                product_id = productId,
+                name = "Second",
+                price = 1000000,
+                discount = 0,
+                cost_price = 500000,
+                article = "ART-3",
+                images = new[] { new { url = "/s3/s3.jpg", ordering = 0 } },
+                characteristics = Array.Empty<object>()
+            };
+            var resp = await client.PostAsJsonAsync("/api/v1/skus", second);
+            resp.StatusCode.Should().Be(HttpStatusCode.Created);
+
+            using var scope2 = _factory.Services.CreateScope();
+            var db2 = scope2.ServiceProvider.GetRequiredService<B2BDbContext>();
+
+            var productAfter = await db2.Products.AsNoTracking().FirstAsync(p => p.Id == productId);
+            productAfter.Status.Should().Be(ProductStatus.OnModeration);
+
+            var eventsAfter = await db2.OutboxMessages.CountAsync(m =>
+                m.AggregateId == productId && m.EventType == "product.sent_to_moderation.v1");
+            eventsAfter.Should().Be(eventsBefore + 1);
         }
     }
 }

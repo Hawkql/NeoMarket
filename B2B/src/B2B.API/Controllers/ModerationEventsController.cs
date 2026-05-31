@@ -6,9 +6,8 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace B2B.Api.Controllers
 {
-
     [ApiController]
-    [Route("api/v1/events")]
+    [Route("api/v1/moderation")]                  // ← новый базовый путь по OpenAPI
     [AllowAnonymous]
     public sealed class ModerationController : ControllerBase
     {
@@ -31,8 +30,9 @@ namespace B2B.Api.Controllers
             return null;
         }
 
-        [HttpPost("moderation")]
-        public async Task<IActionResult> ApplyDecision(
+        // POST /api/v1/moderation/events — receiveModerationEvent (по OpenAPI)
+        [HttpPost("events")]
+        public async Task<IActionResult> ReceiveModerationEvent(
             [FromBody] ModerationDecisionRequest request, CancellationToken ct)
         {
             var auth = CheckServiceKey();
@@ -41,12 +41,16 @@ namespace B2B.Api.Controllers
             var command = new ApplyModerationDecisionCommand(
                 IdempotencyKey: request.IdempotencyKey,
                 ProductId: request.ProductId,
-                Status: request.Status,
+                EventType: request.EventType,
                 HardBlock: request.HardBlock,
-                BlockingReason: request.BlockingReason,
-                FieldReports: request.FieldReports);
+                BlockingReasonId: request.BlockingReasonId,
+                ModeratorComment: request.ModeratorComment,
+                ModeratorId: request.ModeratorId,
+                FieldReports: request.FieldReports,
+                OccurredAt: request.OccurredAt);
+
             await _mediator.Send(command, ct);
-            return Ok(new { ok = true });
+            return NoContent();                  // ← 204 No Content по OpenAPI
         }
     }
 }

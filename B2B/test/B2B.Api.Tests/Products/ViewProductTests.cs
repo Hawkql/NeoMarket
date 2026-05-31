@@ -62,8 +62,8 @@ namespace B2B.Api.Tests.Products
         }
 
         // ── продавец видит свою карточку целиком ──
-        [Fact(DisplayName = "view_own_product_returns_full_card")]
-        public async Task view_own_product_returns_full_card()
+        [Fact(DisplayName = "get_moderated_product_returns_full_payload")]
+        public async Task get_moderated_product_returns_full_payload()
         {
             var sellerId = Guid.NewGuid();
             var client = AuthClient(sellerId);
@@ -83,16 +83,18 @@ namespace B2B.Api.Tests.Products
             root.TryGetProperty("field_reports", out _).Should().BeTrue("карточка содержит field_reports");
         }
 
-        // ── BLOCKED-товар показывает blocking_reason + field_reports ──
-        [Fact(DisplayName = "view_blocked_shows_blocking_reason")]
-        public async Task view_blocked_shows_blocking_reason()
+        // ── BLOCKED-товар показывает blocking_reason_id + moderator_comment + field_reports ──
+        [Fact(DisplayName = "get_blocked_product_returns_blocking_reason_and_field_reports")]
+        public async Task get_blocked_product_returns_blocking_reason_and_field_reports()
         {
             var sellerId = Guid.NewGuid();
             var client = AuthClient(sellerId);
             var productId = await CreateProductAsync(client);
             await CreateSkuAsync(client, productId);     // → OnModeration (нужно для Block)
 
-            // Блокируем напрямую через домен с полевым отчётом
+            // Блокируем напрямую через домен с полевым отчётом.
+            // По OpenAPI: причина — это id (uuid) + комментарий модератора (string).
+            // Title не хранится — Moderation-сервис владеет справочником.
             using (var scope = _factory.Services.CreateScope())
             {
                 var db = scope.ServiceProvider.GetRequiredService<B2BDbContext>();
@@ -100,7 +102,7 @@ namespace B2B.Api.Tests.Products
                     .Include(p => p.FieldReports)
                     .FirstAsync(p => p.Id == productId);
                 product.Block(
-                    new BlockingReason(Guid.NewGuid(), "Описание не соответствует", "комментарий модератора"),
+                    new BlockingReason(Guid.NewGuid(), "комментарий модератора"),
                     new List<(FieldReportTarget, Guid?, string)>
                     {
                         (FieldReportTarget.Description, null, "Несоответствие описания")
@@ -118,10 +120,14 @@ namespace B2B.Api.Tests.Products
 
             root.GetProperty("status").GetString().Should().Be("BLOCKED");
 
-            // blocking_reason — объект с title
-            var br = root.GetProperty("blocking_reason");
-            br.ValueKind.Should().Be(JsonValueKind.Object);
-            br.GetProperty("title").GetString().Should().Be("Описание не соответствует");
+            // blocking_reason_id — uuid (по OpenAPI плоское поле, не объект)
+            var bri = root.GetProperty("blocking_reason_id");
+            bri.ValueKind.Should().Be(JsonValueKind.String);
+            Guid.TryParse(bri.GetString(), out _).Should().BeTrue();
+
+            // moderator_comment — строка
+            root.GetProperty("moderator_comment").GetString()
+                .Should().Be("комментарий модератора");
 
             // field_reports — непустой массив
             var reports = root.GetProperty("field_reports");
@@ -130,8 +136,8 @@ namespace B2B.Api.Tests.Products
         }
 
         // ── чужой товар → 404 (чтение скрывает существование) ──
-        [Fact(DisplayName = "view_others_product_returns_404")]
-        public async Task view_others_product_returns_404()
+        [Fact(DisplayName = "get_others_product_returns_404")]
+        public async Task get_others_product_returns_404()
         {
             var ownerId = Guid.NewGuid();
             var productId = await CreateProductAsync(AuthClient(ownerId));
@@ -144,12 +150,53 @@ namespace B2B.Api.Tests.Products
         }
 
         // ── несуществующий → 404 ──
-        [Fact(DisplayName = "view_nonexistent_returns_404")]
-        public async Task view_nonexistent_returns_404()
+        [Fact(DisplayName = "get_nonexistent_returns_404")]
+        public async Task get_nonexistent_returns_404()
         {
             var client = AuthClient(Guid.NewGuid());
             var resp = await client.GetAsync($"/api/v1/products/{Guid.NewGuid()}");
             resp.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        }
+
+        // ── страховка: images SKU реально попадают в карточку (фикс из ревью US-05) ──
+        [Fact(DisplayName = "get_product_includes_sku_images_in_card")]
+        public async Task get_product_includes_sku_images_in_card()
+        {
+            var sellerId = Guid.NewGuid();
+            var client = AuthClient(sellerId);
+            var productId = await CreateProductAsync(client);
+
+            // SKU с двумя картинками
+            var body = new
+            {
+                product_id = productId,
+                name = "SKU-IMG",
+                price = 1000000,
+                discount = 0,
+                cost_price = 500000,
+                article = "ART-IMG",
+                images = new[]
+                {
+                    new { url = "/s3/sku-1.jpg", ordering = 0 },
+                    new { url = "/s3/sku-2.jpg", ordering = 1 }
+                },
+                characteristics = Array.Empty<object>()
+            };
+            (await client.PostAsJsonAsync("/api/v1/skus", body))
+                .StatusCode.Should().Be(HttpStatusCode.Created);
+
+            var resp = await client.GetAsync($"/api/v1/products/{productId}");
+            resp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+            var root = JsonDocument.Parse(await resp.Content.ReadAsStringAsync()).RootElement;
+            var sku = root.GetProperty("skus")[0];
+
+            var imgs = sku.GetProperty("images");
+            imgs.ValueKind.Should().Be(JsonValueKind.Array, "images SKU должны быть массивом");
+            imgs.GetArrayLength().Should().Be(2, "обе картинки SKU должны попасть в карточку");
+
+            sku.TryGetProperty("image_url", out _).Should()
+                .BeFalse("скалярный image_url убран в пользу images[]");
         }
     }
 }

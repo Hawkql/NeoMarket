@@ -8,7 +8,7 @@ namespace B2B.Domain.Invoices
 {
     public enum InvoiceStatus
     {
-        Pending,           
+        Created,           
         PartiallyAccepted,  
         Accepted,           
         Cancelled           

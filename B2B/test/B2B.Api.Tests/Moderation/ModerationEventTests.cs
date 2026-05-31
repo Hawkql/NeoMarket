@@ -16,6 +16,12 @@ namespace B2B.Api.Tests.Moderation
     public sealed class ModerationEventTests : IClassFixture<CustomWebApplicationFactory>
     {
         private const string ServiceKey = "test-service-key";
+
+        // Произвольный uuid причины. Контракт OpenAPI требует только тип uuid,
+        // содержимое не валидируется на стороне B2B (это межсервисный id из Moderation).
+        private static readonly Guid SampleReasonId =
+            Guid.Parse("11111111-1111-1111-1111-111111111111");
+
         private readonly CustomWebApplicationFactory _factory;
 
         public ModerationEventTests(CustomWebApplicationFactory factory) => _factory = factory;
@@ -35,7 +41,7 @@ namespace B2B.Api.Tests.Moderation
             return c;
         }
 
-        // товар с SKU → OnModeration (готов к решению модерации)
+        // Товар с SKU → OnModeration (готов к решению модерации)
         private async Task<(Guid productId, Guid sellerId)> ProductOnModerationAsync()
         {
             var sellerId = Guid.NewGuid();
@@ -82,11 +88,12 @@ namespace B2B.Api.Tests.Moderation
             {
                 idempotency_key = Guid.NewGuid(),
                 product_id = pid,
-                status = "MODERATED",
-                hard_block = false
+                event_type = "MODERATED",
+                hard_block = false,
+                occurred_at = DateTime.UtcNow
             };
-            var resp = await ServiceClient().PostAsJsonAsync("/api/v1/events/moderation", body);
-            resp.StatusCode.Should().Be(HttpStatusCode.OK);
+            var resp = await ServiceClient().PostAsJsonAsync("/api/v1/moderation/events", body);
+            resp.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
             (await GetStatusAsync(pid)).Should().Be(ProductStatus.Moderated);
 
@@ -106,16 +113,18 @@ namespace B2B.Api.Tests.Moderation
             {
                 idempotency_key = Guid.NewGuid(),
                 product_id = pid,
-                status = "BLOCKED",
+                event_type = "BLOCKED",
                 hard_block = false,
-                blocking_reason = new { id = Guid.NewGuid(), title = "причина", comment = "коммент" },
+                blocking_reason_id = SampleReasonId,
+                moderator_comment = "коммент модератора",
                 field_reports = new[]
                 {
                     new { field_name = "description", sku_id = (Guid?)null, comment = "плохое описание" }
-                }
+                },
+                occurred_at = DateTime.UtcNow
             };
-            var resp = await ServiceClient().PostAsJsonAsync("/api/v1/events/moderation", body);
-            resp.StatusCode.Should().Be(HttpStatusCode.OK);
+            var resp = await ServiceClient().PostAsJsonAsync("/api/v1/moderation/events", body);
+            resp.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
             (await GetStatusAsync(pid)).Should().Be(ProductStatus.Blocked);
 
@@ -136,12 +145,14 @@ namespace B2B.Api.Tests.Moderation
             {
                 idempotency_key = Guid.NewGuid(),
                 product_id = pid,
-                status = "BLOCKED",
+                event_type = "BLOCKED",
                 hard_block = true,
-                blocking_reason = new { id = Guid.NewGuid(), title = "грубое", comment = "x" }
+                blocking_reason_id = SampleReasonId,
+                moderator_comment = "грубое нарушение",
+                occurred_at = DateTime.UtcNow
             };
-            var resp = await ServiceClient().PostAsJsonAsync("/api/v1/events/moderation", body);
-            resp.StatusCode.Should().Be(HttpStatusCode.OK);
+            var resp = await ServiceClient().PostAsJsonAsync("/api/v1/moderation/events", body);
+            resp.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
             (await GetStatusAsync(pid)).Should().Be(ProductStatus.HardBlocked);
         }
@@ -156,14 +167,16 @@ namespace B2B.Api.Tests.Moderation
             {
                 idempotency_key = Guid.NewGuid(),
                 product_id = pid,
-                status = "BLOCKED",
+                event_type = "BLOCKED",
                 hard_block = true,
-                blocking_reason = new { id = Guid.NewGuid(), title = "t", comment = "c" }
+                blocking_reason_id = SampleReasonId,
+                moderator_comment = "x",
+                occurred_at = DateTime.UtcNow
             };
-            (await ServiceClient().PostAsJsonAsync("/api/v1/events/moderation", block))
-                .StatusCode.Should().Be(HttpStatusCode.OK);
+            (await ServiceClient().PostAsJsonAsync("/api/v1/moderation/events", block))
+                .StatusCode.Should().Be(HttpStatusCode.NoContent);
 
-            // продавец пытается редактировать HARD_BLOCKED
+            // Продавец пытается редактировать HARD_BLOCKED
             var edit = new { title = "try", description = "try" };
             var resp = await SellerClient(sellerId).PutAsJsonAsync($"/api/v1/products/{pid}", edit);
             resp.StatusCode.Should().Be(HttpStatusCode.Forbidden);
@@ -179,18 +192,19 @@ namespace B2B.Api.Tests.Moderation
             {
                 idempotency_key = key,
                 product_id = pid,
-                status = "MODERATED",
-                hard_block = false
+                event_type = "MODERATED",
+                hard_block = false,
+                occurred_at = DateTime.UtcNow
             };
 
-            (await ServiceClient().PostAsJsonAsync("/api/v1/events/moderation", body))
-                .StatusCode.Should().Be(HttpStatusCode.OK);
+            (await ServiceClient().PostAsJsonAsync("/api/v1/moderation/events", body))
+                .StatusCode.Should().Be(HttpStatusCode.NoContent);
             (await GetStatusAsync(pid)).Should().Be(ProductStatus.Moderated);
 
-            // повтор тем же ключом — Approve второй раз кинул бы (Moderated→Approve запрещён),
-            // но идемпотентность вернёт раньше → без эффекта и без ошибки
-            var dup = await ServiceClient().PostAsJsonAsync("/api/v1/events/moderation", body);
-            dup.StatusCode.Should().Be(HttpStatusCode.OK);
+            // Повтор тем же ключом — Approve второй раз кинул бы (Moderated→Approve запрещён),
+            // но идемпотентность вернёт раньше → без эффекта и без ошибки.
+            var dup = await ServiceClient().PostAsJsonAsync("/api/v1/moderation/events", body);
+            dup.StatusCode.Should().Be(HttpStatusCode.NoContent);
             (await GetStatusAsync(pid)).Should().Be(ProductStatus.Moderated);
         }
 
@@ -200,9 +214,21 @@ namespace B2B.Api.Tests.Moderation
         {
             var (pid, _) = await ProductOnModerationAsync();
             var noKey = _factory.CreateClient();
-            var body = new { idempotency_key = Guid.NewGuid(), product_id = pid, status = "MODERATED", hard_block = false };
-            var resp = await noKey.PostAsJsonAsync("/api/v1/events/moderation", body);
+            var body = new
+            {
+                idempotency_key = Guid.NewGuid(),
+                product_id = pid,
+                event_type = "MODERATED",
+                hard_block = false,
+                occurred_at = DateTime.UtcNow
+            };
+            var resp = await noKey.PostAsJsonAsync("/api/v1/moderation/events", body);
             resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+
+            // Опциональная страховка: тело плоское {code, message} (после US-07 fix)
+            var json = await resp.Content.ReadAsStringAsync();
+            JsonDocument.Parse(json).RootElement.GetProperty("code").GetString()
+                .Should().Be("UNAUTHORIZED");
         }
     }
 }

@@ -1,47 +1,40 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using FluentValidation;
 
 namespace B2B.Application.Moderation.Commands.ApplyModerationDecision
 {
     public sealed class ApplyModerationDecisionCommandValidator
-    : AbstractValidator<ApplyModerationDecisionCommand>
+        : AbstractValidator<ApplyModerationDecisionCommand>
     {
-        private static readonly string[] AllowedStatuses = { "MODERATED", "BLOCKED" };
+        private static readonly string[] AllowedEventTypes = { "MODERATED", "BLOCKED" };
 
         public ApplyModerationDecisionCommandValidator()
         {
             RuleFor(x => x.IdempotencyKey).NotEqual(Guid.Empty);
             RuleFor(x => x.ProductId).NotEqual(Guid.Empty);
 
-            RuleFor(x => x.Status)
+            RuleFor(x => x.EventType)
                 .NotEmpty()
-                .Must(s => AllowedStatuses.Contains(s))
-                .WithMessage("status must be MODERATED or BLOCKED");
+                .Must(s => AllowedEventTypes.Contains(s))
+                .WithMessage("event_type must be MODERATED or BLOCKED");
 
-            // При BLOCKED обязательна причина
-            When(x => x.Status == "BLOCKED", () =>
+            RuleFor(x => x.OccurredAt).NotEqual(default(DateTime));
+
+            // При BLOCKED обязателен blocking_reason_id
+            When(x => x.EventType == "BLOCKED", () =>
             {
-                RuleFor(x => x.BlockingReason)
-                    .NotNull().WithMessage("blocking_reason is required when status is BLOCKED");
+                RuleFor(x => x.BlockingReasonId)
+                    .NotNull()
+                    .NotEqual(Guid.Empty)
+                    .WithMessage("blocking_reason_id is required when event_type is BLOCKED");
 
-                When(x => x.BlockingReason is not null, () =>
-                {
-                    RuleFor(x => x.BlockingReason!.Title)
-                        .NotEmpty().WithMessage("blocking_reason.title is required");
-                });
-
-                // Если есть field_reports — каждый с непустым comment
                 When(x => x.FieldReports is not null, () =>
                 {
                     RuleForEach(x => x.FieldReports!).ChildRules(fr =>
                     {
                         fr.RuleFor(f => f.FieldName).NotEmpty();
-                        fr.RuleFor(f => f.Comment).NotEmpty()
-                            .WithMessage("field report comment is required");
+                        fr.RuleFor(f => f.Comment).NotEmpty();
                     });
                 });
             });

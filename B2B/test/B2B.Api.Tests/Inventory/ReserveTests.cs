@@ -212,5 +212,79 @@ namespace B2B.Api.Tests.Inventory
             (await GetActiveAsync(sku)).Should().Be(10, "unreserve возвращает остаток");
             (await GetReservedAsync(sku)).Should().Be(0);
         }
+        // ── unreserve должен брать количество из сохранённого резерва, а не из тела ──
+        // ── unreserve должен брать количество из сохранённого резерва, а не из тела ──
+        [Fact(DisplayName = "unreserve_uses_stored_reservation_not_request_body")]
+        public async Task unreserve_uses_stored_reservation_not_request_body()
+        {
+            var skuId = await CreateSkuWithStockAsync(10);
+            var orderId = Guid.NewGuid();
+
+            var reserveBody = new
+            {
+                idempotency_key = Guid.NewGuid(),
+                order_id = orderId,
+                items = new[] { new { sku_id = skuId, quantity = 3 } }
+            };
+            (await ServiceClient().PostAsJsonAsync("/api/v1/inventory/reserve", reserveBody))
+                .StatusCode.Should().Be(HttpStatusCode.OK);
+
+            // Атакующий пытается прислать quantity=10 для того же order_id
+            var maliciousUnreserve = new
+            {
+                order_id = orderId,
+                items = new[] { new { sku_id = skuId, quantity = 10 } }   // больше, чем зарезервировано
+            };
+            var resp = await ServiceClient().PostAsJsonAsync("/api/v1/inventory/unreserve", maliciousUnreserve);
+            resp.StatusCode.Should().Be(HttpStatusCode.BadRequest, "тело не совпадает с сохранённым резервом");
+
+            // SKU не должен быть тронут после неуспешного unreserve
+            (await GetActiveAsync(skuId)).Should().Be(7);     // 10 - 3 (только reserve)
+            (await GetReservedAsync(skuId)).Should().Be(3);
+        }
+
+        // ── повторный unreserve / неизвестный order_id → 200 (идемпотентность) ──
+        [Fact(DisplayName = "unreserve_with_unknown_order_returns_200")]
+        public async Task unreserve_with_unknown_order_returns_200()
+        {
+            var unknownOrder = Guid.NewGuid();
+            var body = new
+            {
+                order_id = unknownOrder,
+                items = new[] { new { sku_id = Guid.NewGuid(), quantity = 1 } }
+            };
+            var resp = await ServiceClient().PostAsJsonAsync("/api/v1/inventory/unreserve", body);
+            resp.StatusCode.Should().Be(HttpStatusCode.OK, "unreserve без резерва — идемпотентно 200");
+        }
+
+        // ── unreserve с quantity, не совпадающим с сохранённым → 400 ──
+        [Fact(DisplayName = "unreserve_quantity_mismatch_returns_400")]
+        public async Task unreserve_quantity_mismatch_returns_400()
+        {
+            var skuId = await CreateSkuWithStockAsync(5);
+            var orderId = Guid.NewGuid();
+
+            var reserve = new
+            {
+                idempotency_key = Guid.NewGuid(),
+                order_id = orderId,
+                items = new[] { new { sku_id = skuId, quantity = 2 } }
+            };
+            (await ServiceClient().PostAsJsonAsync("/api/v1/inventory/reserve", reserve))
+                .StatusCode.Should().Be(HttpStatusCode.OK);
+
+            // Передаём quantity, не совпадающий с сохранённым
+            var mismatch = new
+            {
+                order_id = orderId,
+                items = new[] { new { sku_id = skuId, quantity = 1 } }   // в БД лежит 2
+            };
+            var resp = await ServiceClient().PostAsJsonAsync("/api/v1/inventory/unreserve", mismatch);
+            resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+            var body = await resp.Content.ReadAsStringAsync();
+            JsonDocument.Parse(body).RootElement.GetProperty("code").GetString()
+                .Should().Be("INVALID_REQUEST");
+        }
     }
 }

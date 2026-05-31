@@ -74,7 +74,7 @@ namespace B2B.Application.PublicCatalog.Queries.ListPublicProducts
                     ? imgs.OrderBy(i => i.Ordering).Select(i => i.Url).FirstOrDefault()
                     : null;
 
-                int? minPrice = minPriceMap.TryGetValue(p.Id, out var mp) ? mp : null;
+                int minPrice = minPriceMap.TryGetValue(p.Id, out var mp) ? mp : 0;
 
                 return new ProductPublicShortDto(
                     Id: p.Id,

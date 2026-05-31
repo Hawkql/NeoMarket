@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using B2B.Domain.Products;
+﻿using B2B.Domain.Products;
 
 namespace B2B.Application.PublicCatalog.Dtos
 {
@@ -13,7 +8,7 @@ namespace B2B.Application.PublicCatalog.Dtos
     string Slug,
     ProductStatus Status,
     Guid CategoryId,
-    int? MinPrice,
+    int MinPrice,
     string? CoverImage,
     DateTime CreatedAt);
 }

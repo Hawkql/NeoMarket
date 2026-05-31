@@ -21,6 +21,13 @@ namespace B2B.Api.Controllers
         public CategoriesController(IMediator mediator) => _mediator = mediator;
 
         // ───── READ (открытые) ─────
+          
+
+
+
+
+
+
 
         [HttpGet]
         [AllowAnonymous]

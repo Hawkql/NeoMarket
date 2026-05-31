@@ -91,7 +91,7 @@ namespace B2B.Api.Tests.Products
                 .Include(p => p.FieldReports)
                 .FirstAsync(p => p.Id == productId);
             product.Block(
-                new BlockingReason(Guid.NewGuid(), "reason", "comment"),
+                new BlockingReason(Guid.NewGuid(), "comment"),
                 new List<(FieldReportTarget, Guid?, string)>(),
                 new List<Guid>(),
                 DateTime.UtcNow);
@@ -196,7 +196,7 @@ namespace B2B.Api.Tests.Products
                     .Include(p => p.FieldReports)
                     .FirstAsync(p => p.Id == productId);
                 product.HardBlock(
-                    new BlockingReason(Guid.NewGuid(), "bad", "x"),
+                    new BlockingReason(Guid.NewGuid(), "x"),
                     new List<(FieldReportTarget, Guid?, string)>(),
                     new List<Guid>(),
                     DateTime.UtcNow);

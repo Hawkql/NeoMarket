@@ -45,16 +45,7 @@ namespace B2B.Application.Invoices.Commands.AcceptInvoice
             if (invoice is null)
                 throw new DomainException("Invoice not found", "NOT_FOUND");
 
-            // Resource hiding: чужой инвойс → 404
-            // (accepted_by — оператор, но владелец-продавец проверяется по SellerId)
-            // Здесь проверяем, что инвойс принадлежит тому, от чьего имени идёт приёмка.
-            // Если оператор отделён от продавца — заменить на проверку роли.
-            if (invoice.SellerId != request.AcceptedBy)
-                throw new DomainException("Invoice not found", "NOT_FOUND");
-
-            // Только Created можно принять (409 иначе) — доменная защита внутри Accept,
-            // но проверяем заранее для чистого 409 без открытия транзакции
-            if (invoice.Status != InvoiceStatus.Pending)
+            if (invoice.Status != InvoiceStatus.Created)              
                 throw new DomainException(
                     $"Cannot accept invoice in status {invoice.Status}", "CONFLICT");
 

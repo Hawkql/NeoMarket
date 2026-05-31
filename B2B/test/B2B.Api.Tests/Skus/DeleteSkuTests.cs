@@ -123,6 +123,18 @@ namespace B2B.Api.Tests.Skus
 
             (await GetStatusAsync(pid)).Should().Be(ProductStatus.Created,
                 "без SKU товар на модерации возвращается в CREATED");
+
+            // Событие в Moderation: товар сошёл с модерации (US-12 fix)
+            using var scope = _factory.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<B2BDbContext>();
+            var evt = await db.OutboxMessages.AsNoTracking()
+                .FirstOrDefaultAsync(m =>
+                    m.EventType == "product.removed_from_moderation.v1"
+                    && m.AggregateId == pid
+                    && m.Destination == "moderation");
+
+            evt.Should().NotBeNull(
+                "удаление последнего SKU у ON_MODERATION-товара должно уведомить Moderation");
         }
 
         // ── удаление SKU у HARD_BLOCKED → 403 ──
@@ -138,7 +150,7 @@ namespace B2B.Api.Tests.Skus
                 var db = scope.ServiceProvider.GetRequiredService<B2BDbContext>();
                 var product = await db.Products.Include(p => p.FieldReports).FirstAsync(p => p.Id == pid);
                 product.HardBlock(
-                    new BlockingReason(Guid.NewGuid(), "bad", "x"),
+                    new BlockingReason(Guid.NewGuid(), "x"),
                     new List<(FieldReportTarget, Guid?, string)>(),
                     new List<Guid>(),
                     DateTime.UtcNow);
@@ -179,5 +191,6 @@ namespace B2B.Api.Tests.Skus
                     && m.AggregateId == sku1);
             evt.Should().NotBeNull("удаление SKU из витрины MODERATED шлёт SKU_OUT_OF_STOCK");
         }
+
     }
 }

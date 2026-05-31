@@ -47,7 +47,7 @@ namespace B2B.Application.Products.Queries.GetProductById
                 ? await _imageRepository.GetByEntitiesAsync(ImageEntityType.Sku, skuIds, ct)
                 : new Dictionary<Guid, IReadOnlyCollection<Image>>();
 
-            return ProductDtoMapper.Map(product, productImage, skus);
+            return ProductDtoMapper.Map(product, productImage, skus, skuImagesMap);
         }
     }
 }

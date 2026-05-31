@@ -3,6 +3,7 @@ using System;
 using B2B.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace B2B.Infrastructure.Migrations
 {
     [DbContext(typeof(B2BDbContext))]
-    partial class B2BDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260531130235_AddInventoryReservations")]
+    partial class AddInventoryReservations
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -715,6 +718,7 @@ namespace B2B.Infrastructure.Migrations
                                 .HasColumnType("uuid");
 
                             b1.Property<string>("Comment")
+                                .IsRequired()
                                 .HasMaxLength(2000)
                                 .HasColumnType("character varying(2000)")
                                 .HasColumnName("blocking_reason_comment");
@@ -722,6 +726,12 @@ namespace B2B.Infrastructure.Migrations
                             b1.Property<Guid>("ReasonId")
                                 .HasColumnType("uuid")
                                 .HasColumnName("blocking_reason_reason_id");
+
+                            b1.Property<string>("Title")
+                                .IsRequired()
+                                .HasMaxLength(255)
+                                .HasColumnType("character varying(255)")
+                                .HasColumnName("blocking_reason_title");
 
                             b1.HasKey("ProductId");
 

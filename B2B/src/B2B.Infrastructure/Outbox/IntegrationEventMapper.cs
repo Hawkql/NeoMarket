@@ -49,6 +49,7 @@ namespace B2B.Infrastructure.Outbox
                     "b2c",
                     "product.blocked.v1")],
 
+
                 ProductHardBlockedEvent e =>
                     [new MappedIntegrationEvent(
                     new ProductHardBlockedIntegrationEventV1
@@ -59,7 +60,15 @@ namespace B2B.Infrastructure.Outbox
                     },
                     "b2c",
                     "product.hard_blocked.v1")],
-
+                ProductRemovedFromModerationEvent e =>
+                    [new MappedIntegrationEvent(
+                            new ProductRemovedFromModerationIntegrationEventV1(default, default, default) {
+                                OccurredOnUtc = e.OccurredOnUtc,
+                                ProductId = e.ProductId,
+                                SellerId = e.SellerId
+                            },
+                            Destination: "moderation",
+                            EventType: "product.removed_from_moderation.v1")],
                 // Удаление товара уведомляет ДВА сервиса разными событиями
                 ProductDeletedEvent e =>
                     [

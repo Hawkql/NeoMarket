@@ -80,17 +80,14 @@ namespace B2B.Application.Skus.Commands.СreateSku
                 skuImages.Add(image);
             }
 
-            // Первый ли это SKU товара? Если да — товар уходит на модерацию.
-            // CountByProductIdAsync считает уже существующие (без только что добавленного,
-            // т.к. SaveChanges ещё не вызван — в БД нового SKU нет).
+            // Первый ли это SKU? CountByProductIdAsync считает уже сохранённые в БД
+            // (только что добавленный ещё не сохранён — SaveChanges позже).
             var existingSkuCount = await _skuRepository.CountByProductIdAsync(
                 request.ProductId, ct);
 
-            if (existingSkuCount == 0)
-            {
-                // CREATED → ON_MODERATION + ProductSentToModerationEvent (идёт в Moderation)
-                product.SendToModerationOnFirstSku();
-            }
+            // Реакция товара на изменение состава SKU: первый SKU → модерация,
+            // добавление к MODERATED/BLOCKED → повторная модерация. Канон b2b-flows.
+            product.OnSkuAdded(isFirstSku: existingSkuCount == 0);
 
             // Product + Sku + Images + Outbox — одна транзакция
             await _unitOfWork.SaveChangesAsync(ct);

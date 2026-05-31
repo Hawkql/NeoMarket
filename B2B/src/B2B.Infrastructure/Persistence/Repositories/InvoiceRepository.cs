@@ -22,7 +22,7 @@ namespace B2B.Infrastructure.Persistence.Repositories
         {
             // Загружаем агрегат с позициями
             return await _dbContext.Invoices
-                .Include("_items")  // backing field, см. InvoiceConfiguration
+                .Include(i=>i.Items)  // backing field, см. InvoiceConfiguration
                 .FirstOrDefaultAsync(i => i.Id == id, ct);
         }
 

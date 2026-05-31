@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using B2B.Application.Skus.Dtos;
 using B2B.Domain.Products;
 
 namespace B2B.Application.Products.Dtos
@@ -16,20 +14,17 @@ namespace B2B.Application.Products.Dtos
        string Description,
        ProductStatus Status,
        bool Deleted,
-       Guid? BlockingReasonId,
-       string? ModeratorComment,
+       Guid? BlockingReasonId,            // ← по OpenAPI ProductResponse
+       string? ModeratorComment,          // ← по OpenAPI ProductResponse
        IReadOnlyList<ImageDto> Images,
        IReadOnlyList<CharacteristicDto> Characteristics,
-       IReadOnlyList<SkuDto> Skus,
+       IReadOnlyList<SkuResponseDto> Skus,
        DateTime CreatedAt,
        DateTime UpdatedAt,
        bool Blocked,
-       BlockingReasonDto? BlockingReason,
        IReadOnlyList<FieldReportDto> FieldReports);
 
     public sealed record ImageDto(Guid Id, string Url, int Ordering);
     public sealed record CharacteristicDto(Guid Id, string Name, string Value);
-    public sealed record BlockingReasonDto(Guid Id, string Title, string? Comment);
     public sealed record FieldReportDto(string FieldName, Guid? SkuId, string Comment);
 }
-   

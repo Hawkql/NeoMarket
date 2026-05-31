@@ -79,10 +79,6 @@ internal class ProductConfiguration : IEntityTypeConfiguration<Product>
             br.Property(x => x.ReasonId)
                 .HasColumnName("blocking_reason_reason_id");
 
-            br.Property(x => x.Title)
-                .HasColumnName("blocking_reason_title")
-                .HasMaxLength(255);
-
             br.Property(x => x.Comment)
                 .HasColumnName("blocking_reason_comment")
                 .HasMaxLength(2000);
