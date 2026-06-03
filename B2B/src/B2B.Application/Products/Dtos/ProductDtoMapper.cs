@@ -27,8 +27,6 @@ namespace B2B.Application.Products.Dtos
                 Description: product.Description,
                 Status: product.Status,
                 Deleted: product.Deleted,
-                BlockingReasonId: product.BlockingReason?.ReasonId,
-                ModeratorComment: product.BlockingReason?.Comment,
                 Images: productImages
                     .OrderBy(i => i.Ordering)
                     .Select(i => new ImageDto(i.Id, i.Url, i.Ordering))
@@ -45,6 +43,11 @@ namespace B2B.Application.Products.Dtos
                 CreatedAt: product.CreatedAt,
                 UpdatedAt: product.UpdatedAt,
                 Blocked: product.Blocked,
+                BlockingReason: product.BlockingReason is null
+                    ? null
+                    : new BlockingReasonDto(
+                        product.BlockingReason.ReasonId,
+                        product.BlockingReason.Comment),
                 FieldReports: product.FieldReports
                     .OrderBy(fr => fr.ReportedAt)
                     .Select(fr => new FieldReportDto(
