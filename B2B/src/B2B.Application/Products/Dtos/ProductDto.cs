@@ -5,6 +5,11 @@ using B2B.Domain.Products;
 
 namespace B2B.Application.Products.Dtos
 {
+    /// <summary>
+    /// Seller-view detail карточки. Соответствует ProductDetailResponse в openapi.yaml.
+    /// blocking_reason — вложенный объект {id, comment}; title опущен (за сервисом
+    /// модерации, см. ADR DropBlockingReasonTitle).
+    /// </summary>
     public sealed record ProductDto(
        Guid Id,
        Guid SellerId,
@@ -14,17 +19,17 @@ namespace B2B.Application.Products.Dtos
        string Description,
        ProductStatus Status,
        bool Deleted,
-       Guid? BlockingReasonId,            // ← по OpenAPI ProductResponse
-       string? ModeratorComment,          // ← по OpenAPI ProductResponse
        IReadOnlyList<ImageDto> Images,
        IReadOnlyList<CharacteristicDto> Characteristics,
        IReadOnlyList<SkuResponseDto> Skus,
        DateTime CreatedAt,
        DateTime UpdatedAt,
        bool Blocked,
+       BlockingReasonDto? BlockingReason,        // ← вложенный объект по ProductDetailResponse
        IReadOnlyList<FieldReportDto> FieldReports);
 
     public sealed record ImageDto(Guid Id, string Url, int Ordering);
     public sealed record CharacteristicDto(Guid Id, string Name, string Value);
+    public sealed record BlockingReasonDto(Guid Id, string? Comment);
     public sealed record FieldReportDto(string FieldName, Guid? SkuId, string Comment);
 }
