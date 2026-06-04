@@ -1,28 +1,27 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using B2C.Application.Catalog.Dtos;
 
 namespace B2C.Application.Cart.Dtos
 {
     /// <summary>
-    /// Позиция корзины с обогащёнными данными из B2B.
+    /// openapi: CartItem. required: sku_id, product_id, name, quantity,
+    /// unit_price, line_total, available_quantity, is_available.
+    /// Optional: sku_code, unit_price_at_add, image.
     /// 
-    /// UnitPrice/Title/SkuName/ImageUrl — приходят из B2B при GET. Если товар
-    /// удалён в B2B (нечего обогащать) — все поля null/пустые, но Quantity и SkuId
-    /// сохраняются, чтобы фронт мог отобразить заглушку с UnavailableReason.
-    /// 
-    /// LineTotal вычисляется в Application (UnitPrice * Quantity), фронт его не считает.
+    /// name = "{ProductTitle} {SkuName}".Trim() — одна строка, как требует openapi.
+    /// image — ImageRef (singular), не массив. Если изображения нет — null.
+    /// is_available = UnavailableReason == None AND quantity ≤ available_quantity.
     /// </summary>
     public sealed record CartItemDto(
         Guid SkuId,
         Guid ProductId,
-        string? Title,
-        string? SkuName,
-        string? ImageUrl,
-        int? UnitPrice,        // null если товар недоступен в B2B
+        string Name,
+        string? SkuCode,
         int Quantity,
-        int? LineTotal,        // null если UnitPrice == null
-        UnavailableReasonDto UnavailableReason);
+        int UnitPrice,
+        int? UnitPriceAtAdd,
+        int LineTotal,
+        int AvailableQuantity,
+        bool IsAvailable,
+        ImageRefDto? Image);
 }

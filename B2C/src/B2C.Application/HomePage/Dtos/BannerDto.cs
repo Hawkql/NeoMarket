@@ -1,16 +1,17 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace B2C.Application.HomePage.Dtos
 {
-    /// <summary>Баннер на главной странице. Возвращается из GET /home/banners.</summary>
+    /// <summary>
+    /// openapi: Banner. required: id, image_url, link.
+    /// Внутреннее поле IsActive у нас в БД есть, но в публичный API не выходит.
+    /// </summary>
     public sealed record BannerDto(
         Guid Id,
-        string Title,
+        string? Title,
         string ImageUrl,
-        string? LinkUrl,
-        int Priority);
+        string? Link,
+        int? Ordering,
+        DateTime? ActiveFrom,
+        DateTime? ActiveTo);
 }

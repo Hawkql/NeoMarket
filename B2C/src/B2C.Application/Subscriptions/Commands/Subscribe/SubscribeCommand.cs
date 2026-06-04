@@ -1,16 +1,12 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using B2C.Application.Subscriptions.Dtos;
 using MediatR;
 
 namespace B2C.Application.Subscriptions.Commands.Subscribe
 {
     /// <summary>
-    /// Подписка на товар. Если подписка уже существует — заменяем notify_on (upsert-семантика).
-    /// Это удобнее для фронта: одной операцией можно "переподписаться с новыми параметрами".
+    /// openapi: POST /api/v1/favorites/{product_id}/subscribe → 204.
+    /// Upsert-семантика: если подписка есть — заменяем NotifyOn на новое значение.
     /// </summary>
     public sealed record SubscribeCommand(
         Guid ProductId,

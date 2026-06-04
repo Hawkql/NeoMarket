@@ -1,4 +1,4 @@
-п»їusing System;
+using System;
 using System.Net;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -21,8 +21,8 @@ namespace B2C.Api.Tests.Catalog
         }
 
         /// <summary>
-        /// US-CAT-01: РєР°С‚Р°Р»РѕРі РѕС‚РґР°С‘С‚ С‚РѕРІР°СЂС‹ СЃ РѕР±СЏР·Р°С‚РµР»СЊРЅС‹РјРё РїРѕР»СЏРјРё
-        /// (РєР°СЂС‚РѕС‡РєР°), Р±РµР· cost_price/reserved_quantity (ACL).
+        /// US-CAT-01: каталог отдаёт товары с обязательными полями
+        /// (карточка), без cost_price/reserved_quantity (ACL).
         /// </summary>
         [Fact(DisplayName = "list_products_returns_card_without_internal_fields")]
         public async Task list_products_returns_acl_filtered_cards()
@@ -34,7 +34,7 @@ namespace B2C.Api.Tests.Catalog
                 InStock: true, Rating: 4.5, ReviewsCount: 42));
 
             var client = _factory.CreateClient();
-            var resp = await client.GetAsync("/api/v1/products");
+            var resp = await client.GetAsync("/api/v1/catalog/products");
             var body = await resp.Content.ReadAsStringAsync();
             Console.WriteLine($">>> LIST: {body}");
 
@@ -43,18 +43,18 @@ namespace B2C.Api.Tests.Catalog
             items.GetArrayLength().Should().Be(1);
 
             var card = items[0];
-            card.GetProperty("title").GetString().Should().Be("Phone");
-            card.GetProperty("price").GetInt32().Should().Be(100_00);
-            card.GetProperty("in_stock").GetBoolean().Should().BeTrue();
+            card.GetProperty("name").GetString().Should().Be("Phone");
+            card.GetProperty("min_price").GetInt32().Should().Be(100_00);
+            card.GetProperty("has_stock").GetBoolean().Should().BeTrue();
 
-            // ACL: РІРЅСѓС‚СЂРµРЅРЅРёС… РїРѕР»РµР№ РЅРµС‚.
+            // ACL: внутренних полей нет.
             card.TryGetProperty("cost_price", out _).Should().BeFalse(
-                "cost_price РќР• РґРѕР»Р¶РµРЅ РїРѕРїР°РґР°С‚СЊ РІ API");
+                "cost_price НЕ должен попадать в API");
             card.TryGetProperty("reserved_quantity", out _).Should().BeFalse(
-                "reserved_quantity РќР• РґРѕР»Р¶РµРЅ РїРѕРїР°РґР°С‚СЊ РІ API");
+                "reserved_quantity НЕ должен попадать в API");
         }
 
-        /// <summary>US-CAT-01: РїР°РіРёРЅР°С†РёСЏ limit/offset.</summary>
+        /// <summary>US-CAT-01: пагинация limit/offset.</summary>
         [Fact(DisplayName = "list_products_supports_pagination")]
         public async Task pagination_works()
         {
@@ -67,7 +67,7 @@ namespace B2C.Api.Tests.Catalog
             }
 
             var client = _factory.CreateClient();
-            var resp = await client.GetAsync("/api/v1/products?limit=2&offset=2");
+            var resp = await client.GetAsync("/api/v1/catalog/products?limit=2&offset=2");
             var root = JsonDocument.Parse(await resp.Content.ReadAsStringAsync()).RootElement;
 
             resp.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -75,7 +75,7 @@ namespace B2C.Api.Tests.Catalog
             root.GetProperty("total_count").GetInt32().Should().Be(5);
         }
 
-        /// <summary>US-CAT-01: СЃРѕСЂС‚РёСЂРѕРІРєР° price_asc.</summary>
+        /// <summary>US-CAT-01: сортировка price_asc.</summary>
         [Fact(DisplayName = "list_products_sort_price_asc")]
         public async Task sort_price_asc_returns_ascending_prices()
         {
@@ -90,22 +90,22 @@ namespace B2C.Api.Tests.Catalog
                 InStock: true, Rating: null, ReviewsCount: null));
 
             var client = _factory.CreateClient();
-            var resp = await client.GetAsync("/api/v1/products?sort=price_asc");
+            var resp = await client.GetAsync("/api/v1/catalog/products?sort=price_asc");
             var items = JsonDocument.Parse(await resp.Content.ReadAsStringAsync())
                 .RootElement.GetProperty("items");
 
-            items[0].GetProperty("price").GetInt32().Should().Be(100_00);
-            items[1].GetProperty("price").GetInt32().Should().Be(200_00);
-            items[2].GetProperty("price").GetInt32().Should().Be(300_00);
+            items[0].GetProperty("min_price").GetInt32().Should().Be(100_00);
+            items[1].GetProperty("min_price").GetInt32().Should().Be(200_00);
+            items[2].GetProperty("min_price").GetInt32().Should().Be(300_00);
         }
 
-        /// <summary>US-CAT-01: РїСѓСЃС‚РѕР№ СЂРµР·СѓР»СЊС‚Р°С‚ вЂ” 200, РЅРµ 404.</summary>
+        /// <summary>US-CAT-01: пустой результат — 200, не 404.</summary>
         [Fact(DisplayName = "list_products_empty_returns_200_with_empty_items")]
         public async Task empty_catalog_returns_200_with_zero_items()
         {
-            // РљР°С‚Р°Р»РѕРі РїСѓСЃС‚.
+            // Каталог пуст.
             var client = _factory.CreateClient();
-            var resp = await client.GetAsync("/api/v1/products");
+            var resp = await client.GetAsync("/api/v1/catalog/products");
 
             resp.StatusCode.Should().Be(HttpStatusCode.OK);
             var items = JsonDocument.Parse(await resp.Content.ReadAsStringAsync())
@@ -114,7 +114,7 @@ namespace B2C.Api.Tests.Catalog
         }
 
         /// <summary>
-        /// US-CAT-02: С‚РµРєСЃС‚РѕРІС‹Р№ РїРѕРёСЃРє РІРѕР·РІСЂР°С‰Р°РµС‚ С‚РѕРІР°СЂС‹, Сѓ РєРѕС‚РѕСЂС‹С… title СЃРѕРґРµСЂР¶РёС‚ Р·Р°РїСЂРѕСЃ.
+        /// US-CAT-02: текстовый поиск возвращает товары, у которых title содержит запрос.
         /// </summary>
         [Fact(DisplayName = "search_matches_title")]
         public async Task search_finds_products_by_title()
@@ -125,16 +125,16 @@ namespace B2C.Api.Tests.Catalog
                 Guid.NewGuid(), "Samsung Galaxy", null, 80_00, null, null, true, null, null));
 
             var client = _factory.CreateClient();
-            var resp = await client.GetAsync("/api/v1/products?search=iPhone");
+            var resp = await client.GetAsync("/api/v1/catalog/products?q=iPhone");
             var items = JsonDocument.Parse(await resp.Content.ReadAsStringAsync())
                 .RootElement.GetProperty("items");
 
             items.GetArrayLength().Should().Be(1);
-            items[0].GetProperty("title").GetString().Should().Contain("iPhone");
+            items[0].GetProperty("name").GetString().Should().Contain("iPhone");
         }
 
         /// <summary>
-        /// US-CAT-02: РїРѕРёСЃРє Р±РµР· СЂРµР·СѓР»СЊС‚Р°С‚РѕРІ вЂ” РїСѓСЃС‚РѕР№ items, РЅРµ РѕС€РёР±РєР°.
+        /// US-CAT-02: поиск без результатов — пустой items, не ошибка.
         /// </summary>
         [Fact(DisplayName = "search_no_match_returns_empty")]
         public async Task search_without_matches_returns_empty_items()
@@ -143,23 +143,40 @@ namespace B2C.Api.Tests.Catalog
                 Guid.NewGuid(), "Phone", null, 100_00, null, null, true, null, null));
 
             var client = _factory.CreateClient();
-            var resp = await client.GetAsync("/api/v1/products?search=ZZZZ_nonexistent");
+            var resp = await client.GetAsync("/api/v1/catalog/products?q=ZZZZ_nonexistent");
             var items = JsonDocument.Parse(await resp.Content.ReadAsStringAsync())
                 .RootElement.GetProperty("items");
 
             resp.StatusCode.Should().Be(HttpStatusCode.OK);
             items.GetArrayLength().Should().Be(0);
         }
-        /// <summary>US-CAT-02 acceptance: search РјРµРЅСЊС€Рµ 3 СЃРёРјРІРѕР»РѕРІ в†’ 400.</summary>
+        /// <summary>US-CAT-02 acceptance: search меньше 3 символов > 400.</summary>
         [Fact(DisplayName = "search_too_short_returns_400")]
         public async Task search_less_than_3_chars_returns_400()
         {
             var client = _factory.CreateClient();
-            var resp = await client.GetAsync("/api/v1/products?search=ab");
+            var resp = await client.GetAsync("/api/v1/catalog/products?q=ab");
             var body = await resp.Content.ReadAsStringAsync();
             Console.WriteLine($">>> SEARCH SHORT: {resp.StatusCode} BODY: {body}");
 
             resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        }
+        [Fact]
+        public async Task invalid_sort_returns_400_with_allowed_list()
+        {
+            var client = _factory.CreateClient();
+            var resp = await client.GetAsync("/api/v1/catalog/products?sort=invalid_value");
+
+            resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+            var body = await resp.Content.ReadAsStringAsync();
+            var json = JsonDocument.Parse(body).RootElement;
+            json.GetProperty("code").GetString().Should().Be("INVALID_REQUEST");
+            json.GetProperty("message").GetString()
+                .Should().Contain("price_asc")
+                .And.Contain("price_desc")
+                .And.Contain("popularity")
+                .And.Contain("new");
         }
     }
 }

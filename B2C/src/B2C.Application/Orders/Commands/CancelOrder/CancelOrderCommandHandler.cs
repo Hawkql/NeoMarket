@@ -14,7 +14,7 @@ using Microsoft.Extensions.Logging;
 
 namespace B2C.Application.Orders.Commands.CancelOrder
 {
-    public sealed class CancelOrderCommandHandler : IRequestHandler<CancelOrderCommand, OrderDetailDto>
+    public sealed class CancelOrderCommandHandler : IRequestHandler<CancelOrderCommand, OrderResponseDto>
     {
         private readonly IOrderRepository _orderRepository;
         private readonly IB2BReservationClient _b2bReservation;
@@ -33,7 +33,7 @@ namespace B2C.Application.Orders.Commands.CancelOrder
             _logger = logger;
         }
 
-        public async Task<OrderDetailDto> Handle(CancelOrderCommand request, CancellationToken ct)
+        public async Task<OrderResponseDto> Handle(CancelOrderCommand request, CancellationToken ct)
         {
             var order = await _orderRepository.GetByIdForBuyerAsync(
                 request.OrderId, _currentUser.BuyerId, ct)
@@ -70,16 +70,16 @@ namespace B2C.Application.Orders.Commands.CancelOrder
 
             if (unreserveOk)
             {
-                order.MarkAsCancelled();
+                order.MarkAsCancelled(request.Reason);
                 _logger.LogInformation("Order {OrderId} cancelled (unreserve OK)", order.Id);
             }
             else
             {
-                order.MarkAsCancelPending();
+                order.MarkAsCancelPending(request.Reason);
                 _logger.LogWarning("Order {OrderId} → CANCEL_PENDING (unreserve failed)", order.Id);
             }
 
-            return OrdersMapper.ToDetailDto(order);
+            return OrdersMapper.ToResponseDto(order);
         }
     }
 }

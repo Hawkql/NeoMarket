@@ -1,15 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace B2C.Application.Catalog.Dtos
 {
+    /// <summary>
+    /// openapi: CategoryTreeNode = CategoryRef + children.
+    /// Плоская структура: повторяем поля CategoryRef + добавляем children.
+    /// </summary>
     public sealed record CategoryTreeNodeDto(
         Guid Id,
-        Guid? ParentId,
         string Name,
-        string Slug,
+        Guid? ParentId,
+        int Level,
+        IReadOnlyList<string> Path,
         IReadOnlyList<CategoryTreeNodeDto> Children);
 }

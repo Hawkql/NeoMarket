@@ -1,12 +1,13 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using B2C.Application.Orders.Dtos;
 using MediatR;
 
 namespace B2C.Application.Orders.Commands.CancelOrder
 {
-    public sealed record CancelOrderCommand(Guid OrderId) : IRequest<OrderDetailDto>;
+    /// <summary>
+    /// openapi: POST /orders/{order_id}/cancel — body optional с reason ≤ 500.
+    /// Reason пробрасываем в Domain (Order.MarkAsCancelled/MarkAsCancelPending).
+    /// </summary>
+    public sealed record CancelOrderCommand(Guid OrderId, string? Reason = null)
+        : IRequest<OrderResponseDto>;
 }

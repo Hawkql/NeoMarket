@@ -22,7 +22,8 @@ namespace B2C.Infrastructure.Integration
                 r.Price,
                 r.Discount,
                 r.ImageUrl,
-                InStock: r.ActiveQuantity > 0,   // ← ACL: количество → bool
+                InStock: r.ActiveQuantity > 0,
+                AvailableQuantity: r.ActiveQuantity,      
                 r.Characteristics.Select(ToCharacteristic).ToList());
 
         public static CharacteristicValue ToCharacteristic(B2bCharacteristicResponse r) =>

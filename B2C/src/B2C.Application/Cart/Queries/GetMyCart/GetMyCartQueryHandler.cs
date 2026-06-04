@@ -38,8 +38,11 @@ namespace B2C.Application.Cart.Queries.GetMyCart
             var cart = await _cartContext.GetMyCartOrNullAsync(ct);
 
             // Гость без корзины или auth-пользователь без корзины — пустой CartDto.
-            if (cart is null || cart.Items.Count == 0)
-                return CartMapper.ToCartDto(Array.Empty<CartItemDto>());
+            if (cart is null)
+                return CartMapper.ToCartDto(Guid.Empty, DateTime.UtcNow, Array.Empty<CartItemDto>());
+
+            if (cart.Items.Count == 0)
+                return CartMapper.ToCartDto(cart.Id, cart.UpdatedAt, Array.Empty<CartItemDto>());
 
             var skuIds = cart.Items.Select(i => i.SkuId).Distinct().ToList();
             var productIds = cart.Items.Select(i => i.ProductId).Distinct().ToList();
@@ -59,7 +62,7 @@ namespace B2C.Application.Cart.Queries.GetMyCart
                 return CartMapper.ToItemDto(item, sku, product);
             }).ToList();
 
-            return CartMapper.ToCartDto(itemDtos);
+            return CartMapper.ToCartDto(cart.Id, cart.UpdatedAt, itemDtos);
         }
     }
 }

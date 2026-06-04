@@ -1,21 +1,22 @@
 ﻿namespace B2C.Api.Contracts
 {
     /// <summary>
-    /// Checkout (US-ORD-01). IdempotencyKey — клиент генерирует UUID для защиты
-    /// от двойного submit. Цены НЕ принимаем — фиксируем на сервере из B2B.
+    /// openapi: OrderCreateRequest. required: address_id, payment_method_id.
+    /// IdempotencyKey идёт ОТДЕЛЬНО в заголовке Idempotency-Key (см. Controller),
+    /// не в теле — openapi прямо требует header.
     /// </summary>
     public sealed record CreateOrderRequest(
-        Guid IdempotencyKey,
-        string DeliveryAddress,
+        Guid AddressId,
+        Guid PaymentMethodId,
+        string? Comment,
         List<CreateOrderItemRequest> Items);
 
     public sealed record CreateOrderItemRequest(
         Guid SkuId,
         int Quantity);
 
-    /// <summary>
-    /// Admin/service переход статуса. TargetStatus — строка ("assembling", "delivering",
-    /// "delivered"). Контроллер мапит в OrderStatusDto.
-    /// </summary>
     public sealed record TransitionOrderStatusRequest(string TargetStatus);
+
+    public sealed record CancelOrderRequest(string? Reason);
+
 }

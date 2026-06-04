@@ -48,8 +48,8 @@ namespace B2C.Api.Tests.Auth
 
             var addResp = await guestClient.PostAsJsonAsync(
                 "/api/v1/cart/items", new { sku_id = skuId, quantity = 2 });
-            addResp.StatusCode.Should().Be(HttpStatusCode.NoContent,
-                await addResp.Content.ReadAsStringAsync());
+            addResp.StatusCode.Should().Be(HttpStatusCode.OK);
+               
 
             // 2. Регистрация + login с тем же session_id.
             var registerClient = _factory.CreateClient();
@@ -95,7 +95,7 @@ namespace B2C.Api.Tests.Auth
                 productId, "Phone", null, price, null, null, true, null, null));
             _factory.CatalogFake.SeedSku(new SkuInfo(
                 skuId, productId, "Default", price, Discount: 0, ImageUrl: null,
-                InStock: true, Characteristics: Array.Empty<CharacteristicValue>()));
+                InStock: true, AvailableQuantity: 100, Characteristics: Array.Empty<CharacteristicValue>()));
         }
     }
 }

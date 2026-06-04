@@ -25,8 +25,6 @@ namespace B2C.Api.Tests.Favorites
 
         private HttpClient CreateAuthorizedClient(Guid buyerId)
         {
-            // FK: favorites.buyer_id → buyers.id. Перед запросом seed-им Buyer
-            // с тем же id, что в JWT, иначе INSERT упадёт constraint violation.
             _factory.EnsureBuyer(buyerId);
 
             var client = _factory.CreateClient();
@@ -37,7 +35,7 @@ namespace B2C.Api.Tests.Favorites
         }
 
         /// <summary>
-        /// US-CART-01: добавление в избранное идемпотентно — повтор не создаёт дубль.
+        /// US-CART-01: openapi PUT /api/v1/favorites/{product_id} — 204 идемпотентно.
         /// </summary>
         [Fact(DisplayName = "add_favorite_is_idempotent")]
         public async Task adding_same_product_twice_does_not_duplicate()
@@ -48,25 +46,24 @@ namespace B2C.Api.Tests.Favorites
             var productId = Guid.NewGuid();
             SeedProduct(productId);
 
-            var add1 = await client.PostAsync($"/api/v1/favorites/{productId}", content: null);
-            add1.StatusCode.Should().Be(HttpStatusCode.Created);
+            var add1 = await client.PutAsync($"/api/v1/favorites/{productId}", content: null);
+            add1.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
-            var add2 = await client.PostAsync($"/api/v1/favorites/{productId}", content: null);
-            add2.StatusCode.Should().Be(HttpStatusCode.Created,
+            var add2 = await client.PutAsync($"/api/v1/favorites/{productId}", content: null);
+            add2.StatusCode.Should().Be(HttpStatusCode.NoContent,
                 "повторное добавление должно быть идемпотентно");
 
             var listResp = await client.GetAsync("/api/v1/favorites");
             var body = await listResp.Content.ReadAsStringAsync();
             Console.WriteLine($">>> LIST: {body}");
 
-            var array = JsonDocument.Parse(body).RootElement;
-            array.GetArrayLength().Should().Be(1, "не должно быть дубля в избранном");
-            array[0].GetProperty("product_id").GetGuid().Should().Be(productId);
+            var items = JsonDocument.Parse(body).RootElement.GetProperty("items");
+            items.GetArrayLength().Should().Be(1, "не должно быть дубля в избранном");
+            items[0].GetProperty("id").GetGuid().Should().Be(productId);
         }
 
         /// <summary>
         /// US-CART-01: удаление из избранного идемпотентно.
-        /// Повторный DELETE — тоже 204, даже если товара уже нет.
         /// </summary>
         [Fact(DisplayName = "remove_favorite_is_idempotent")]
         public async Task removing_non_existent_favorite_returns_204()
@@ -77,15 +74,14 @@ namespace B2C.Api.Tests.Favorites
             var productId = Guid.NewGuid();
             SeedProduct(productId);
 
-            // Никогда не добавляли, сразу удаляем — должно быть 204.
             var resp = await client.DeleteAsync($"/api/v1/favorites/{productId}");
             resp.StatusCode.Should().Be(HttpStatusCode.NoContent,
                 "удаление несуществующего — идемпотентно");
         }
 
         /// <summary>
-        /// US-CART-01: GET /favorites обогащает данные через B2B batch-запрос.
-        /// Удалённые в B2B товары просто не попадают в ответ (не ошибка).
+        /// US-CART-01: GET /favorites возвращает PaginatedCatalogProducts.
+        /// Удалённые в B2B товары — silent skip.
         /// </summary>
         [Fact(DisplayName = "deleted_in_b2b_products_excluded_from_favorites")]
         public async Task favorites_excludes_products_removed_from_b2b_catalog()
@@ -99,25 +95,28 @@ namespace B2C.Api.Tests.Favorites
             SeedProduct(existingProductId, "Existing");
             SeedProduct(ghostProductId, "Will-be-removed");
 
-            // Добавляем оба в избранное.
-            (await client.PostAsync($"/api/v1/favorites/{existingProductId}", null)).EnsureSuccessStatusCode();
-            (await client.PostAsync($"/api/v1/favorites/{ghostProductId}", null)).EnsureSuccessStatusCode();
+            (await client.PutAsync($"/api/v1/favorites/{existingProductId}", null)).EnsureSuccessStatusCode();
+            (await client.PutAsync($"/api/v1/favorites/{ghostProductId}", null)).EnsureSuccessStatusCode();
 
-            // Имитируем удаление одного из B2B.
             _factory.CatalogFake.RemoveProduct(ghostProductId);
 
             var listResp = await client.GetAsync("/api/v1/favorites");
             var body = await listResp.Content.ReadAsStringAsync();
             Console.WriteLine($">>> LIST AFTER REMOVE: {body}");
 
-            var array = JsonDocument.Parse(body).RootElement;
-            array.GetArrayLength().Should().Be(1,
+            var root = JsonDocument.Parse(body).RootElement;
+            var items = root.GetProperty("items");
+            items.GetArrayLength().Should().Be(1,
                 "удалённый в B2B товар не попадает в ответ");
-            array[0].GetProperty("product_id").GetGuid().Should().Be(existingProductId);
+            items[0].GetProperty("id").GetGuid().Should().Be(existingProductId);
+
+            // openapi PaginatedCatalogProducts требует total_count/limit/offset.
+            root.GetProperty("total_count").GetInt32().Should().Be(2,
+                "total_count считает все Favorite, даже удалённые в B2B");
         }
 
         /// <summary>
-        /// US-CART-01: anonymous → 401 (избранное привязано к покупателю).
+        /// US-CART-01: anonymous → 401.
         /// </summary>
         [Fact(DisplayName = "favorites_require_authorization")]
         public async Task favorites_without_jwt_return_401()

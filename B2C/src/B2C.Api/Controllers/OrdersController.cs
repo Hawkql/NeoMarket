@@ -27,20 +27,28 @@ namespace B2C.Api.Controllers
         /// US-ORD-01: checkout. Возвращает 201 с созданным заказом (status=PAID).
         /// Идемпотентность по idempotency_key: повторный submit вернёт существующий заказ.
         /// </summary>
+        /// <summary>
+        /// openapi: POST /api/v1/orders. Header Idempotency-Key обязателен (TTL 1 час).
+        /// IDOR: AddressId/PaymentMethodId проверяются в handler — чужие → NOT_FOUND.
+        /// </summary>
         [HttpPost]
         public async Task<IActionResult> CreateOrder(
-            [FromBody] CreateOrderRequest request, CancellationToken ct)
+            [FromHeader(Name = "Idempotency-Key")] Guid idempotencyKey,
+            [FromBody] CreateOrderRequest request,
+            CancellationToken ct)
         {
             var items = request.Items
                 .Select(i => new CreateOrderItem(i.SkuId, i.Quantity))
                 .ToList();
 
             var order = await _mediator.Send(new CreateOrderCommand(
-                request.IdempotencyKey,
-                request.DeliveryAddress,
+                idempotencyKey,
+                request.AddressId,
+                request.PaymentMethodId,
+                request.Comment,
                 items), ct);
 
-            return CreatedAtAction(nameof(GetOrder), new { orderId = order.Id }, order);
+            return CreatedAtAction(nameof(GetOrder), new { order_id = order.Id }, order);
         }
 
         /// <summary>US-ORD-02: список заказов покупателя с пагинацией и фильтром статуса.</summary>
@@ -58,21 +66,27 @@ namespace B2C.Api.Controllers
         }
 
         /// <summary>US-ORD-02: детали заказа. IDOR-safe — чужой заказ → 404.</summary>
-        [HttpGet("{orderId:guid}")]
-        public async Task<IActionResult> GetOrder(Guid orderId, CancellationToken ct)
+        [HttpGet("{order_id:guid}")]
+        public async Task<IActionResult> GetOrder(
+             [FromRoute(Name = "order_id")] Guid orderId,
+             CancellationToken ct)
         {
             var order = await _mediator.Send(new GetMyOrderQuery(orderId), ct);
             return Ok(order);
         }
 
         /// <summary>
-        /// US-ORD-03: отмена заказа. unreserve OK → CANCELLED, fail → CANCEL_PENDING.
-        /// Отмена ASSEMBLING/DELIVERING/DELIVERED → 409 (Domain CanBeCancelled).
+        /// openapi: POST /orders/{order_id}/cancel. requestBody optional с reason ≤ 500.
+        /// Ответ 200 OrderResponse — содержит свежий статус (CANCELLED либо CANCEL_PENDING).
         /// </summary>
-        [HttpPost("{orderId:guid}/cancel")]
-        public async Task<IActionResult> CancelOrder(Guid orderId, CancellationToken ct)
+        [HttpPost("{order_id:guid}/cancel")]
+        public async Task<IActionResult> CancelOrder(
+            [FromRoute(Name = "order_id")] Guid orderId,
+            [FromBody] CancelOrderRequest? request,
+            CancellationToken ct)
         {
-            var order = await _mediator.Send(new CancelOrderCommand(orderId), ct);
+            var order = await _mediator.Send(
+                new CancelOrderCommand(orderId, request?.Reason), ct);
             return Ok(order);
         }
 

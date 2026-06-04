@@ -40,9 +40,11 @@ namespace B2C.Api.Tests.Catalog
                 Skus: new[]
                 {
                     new SkuInfo(sku1Id, productId, "Black 256GB", 100_00, Discount: 10, "/img/black.jpg",
-                        InStock: true, Characteristics: Array.Empty<CharacteristicValue>()),
+                        InStock: true, AvailableQuantity: 5,
+                        Characteristics: Array.Empty<CharacteristicValue>()),
                     new SkuInfo(sku2Id, productId, "White 256GB", 100_00, Discount: 0, "/img/white.jpg",
-                        InStock: false, Characteristics: Array.Empty<CharacteristicValue>()),
+                        InStock: false, AvailableQuantity: 0,
+                        Characteristics: Array.Empty<CharacteristicValue>()),
                 },
                 Characteristics: new[]
                 {
@@ -53,23 +55,26 @@ namespace B2C.Api.Tests.Catalog
                 ReviewsCount: 153));
 
             var client = _factory.CreateClient();
-            var resp = await client.GetAsync($"/api/v1/products/{productId}");
+            var resp = await client.GetAsync($"/api/v1/catalog/products/{productId}");
             var body = await resp.Content.ReadAsStringAsync();
             Console.WriteLine($">>> DETAIL: {body}");
 
             resp.StatusCode.Should().Be(HttpStatusCode.OK);
-            var root = JsonDocument.Parse(body).RootElement;
 
-            root.GetProperty("title").GetString().Should().Be("iPhone 15 Pro");
-            root.GetProperty("image_urls").GetArrayLength().Should().Be(2);
-            root.GetProperty("characteristics").GetArrayLength().Should().Be(2);
+            var root = JsonDocument.Parse(body).RootElement;
+            root.GetProperty("name").GetString().Should().Be("iPhone 15 Pro");
+            root.GetProperty("images").GetArrayLength().Should().Be(2);
+            // openapi: characteristics → attributes (object с ключами Brand/Year)
+            var attrs = root.GetProperty("attributes");
+            attrs.GetProperty("Brand").GetString().Should().Be("Apple");
+            attrs.GetProperty("Year").GetString().Should().Be("2025");
 
             var skus = root.GetProperty("skus");
             skus.GetArrayLength().Should().Be(2);
 
-            // SKU без остатка ОТОБРАЖАЕТСЯ (но фронт сделает кнопку неактивной по in_stock=false).
+            // SKU без остатка ОТОБРАЖАЕТСЯ (фронт сделает кнопку неактивной по available_quantity=0).
             var unavailableSku = skus[1];
-            unavailableSku.GetProperty("in_stock").GetBoolean().Should().BeFalse();
+            unavailableSku.GetProperty("available_quantity").GetInt32().Should().Be(0);
         }
 
         /// <summary>US-CAT-03: несуществующий товар → 404.</summary>
@@ -77,7 +82,7 @@ namespace B2C.Api.Tests.Catalog
         public async Task non_existent_product_returns_404()
         {
             var client = _factory.CreateClient();
-            var resp = await client.GetAsync($"/api/v1/products/{Guid.NewGuid()}");
+            var resp = await client.GetAsync($"/api/v1/catalog/products/{Guid.NewGuid()}");
             resp.StatusCode.Should().Be(HttpStatusCode.NotFound);
         }
     }
