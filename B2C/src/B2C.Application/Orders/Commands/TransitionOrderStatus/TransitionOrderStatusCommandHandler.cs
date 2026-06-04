@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿using System.Threading;
 using System.Threading.Tasks;
 using B2C.Application.Orders.Dtos;
 using B2C.Domain.Common;
@@ -11,7 +8,7 @@ using MediatR;
 namespace B2C.Application.Orders.Commands.TransitionOrderStatus
 {
     public sealed class TransitionOrderStatusCommandHandler
-      : IRequestHandler<TransitionOrderStatusCommand, OrderDetailDto>
+      : IRequestHandler<TransitionOrderStatusCommand, OrderResponseDto>
     {
         private readonly IOrderRepository _orderRepository;
 
@@ -20,7 +17,7 @@ namespace B2C.Application.Orders.Commands.TransitionOrderStatus
             _orderRepository = orderRepository;
         }
 
-        public async Task<OrderDetailDto> Handle(
+        public async Task<OrderResponseDto> Handle(
             TransitionOrderStatusCommand request, CancellationToken ct)
         {
             var order = await _orderRepository.GetByIdAsync(request.OrderId, ct)
@@ -35,14 +32,14 @@ namespace B2C.Application.Orders.Commands.TransitionOrderStatus
                     order.StartDelivering();
                     break;
                 case OrderStatusDto.Delivered:
-                    order.MarkAsDelivered();  // поднимет OrderDeliveredEvent → fulfill
+                    order.MarkAsDelivered();   // поднимет OrderDeliveredEvent → fulfill
                     break;
                 default:
                     throw new DomainException(
                         $"Unsupported target status {request.TargetStatus}", "INVALID_REQUEST");
             }
 
-            return OrdersMapper.ToDetailDto(order);
+            return OrdersMapper.ToResponseDto(order);
         }
     }
 }

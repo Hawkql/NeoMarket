@@ -13,11 +13,8 @@ namespace B2C.Application.Catalog.Queries.ListCatalogProducts
         {
             RuleFor(x => x.Search)
                 .MinimumLength(3)
-                    .WithMessage("Search query must be at least 3 characters")
-                .MaximumLength(255)
-                    .WithMessage("Search query must be at most 255 characters")
-                .When(x => !string.IsNullOrWhiteSpace(x.Search));
-
+                .MaximumLength(200)
+                .When(x => x.Search is not null);
             RuleFor(x => x.MinPrice).GreaterThanOrEqualTo(0).When(x => x.MinPrice.HasValue);
             RuleFor(x => x.MaxPrice).GreaterThanOrEqualTo(0).When(x => x.MaxPrice.HasValue);
             RuleFor(x => x)

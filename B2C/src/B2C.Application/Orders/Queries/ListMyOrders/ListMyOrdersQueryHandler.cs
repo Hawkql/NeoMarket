@@ -12,7 +12,7 @@ using MediatR;
 namespace B2C.Application.Orders.Queries.ListMyOrders
 {
     public sealed class ListMyOrdersQueryHandler
-        : IRequestHandler<ListMyOrdersQuery, PagedResult<OrderSummaryDto>>
+        : IRequestHandler<ListMyOrdersQuery, PagedResult<OrderResponseDto>>
     {
         private readonly IOrderRepository _orderRepository;
         private readonly ICurrentUserService _currentUser;
@@ -25,7 +25,7 @@ namespace B2C.Application.Orders.Queries.ListMyOrders
             _currentUser = currentUser;
         }
 
-        public async Task<PagedResult<OrderSummaryDto>> Handle(
+        public async Task<PagedResult<OrderResponseDto>> Handle(
             ListMyOrdersQuery request, CancellationToken ct)
         {
             OrderStatus? statusFilter = request.StatusFilter is null
@@ -35,8 +35,8 @@ namespace B2C.Application.Orders.Queries.ListMyOrders
             var (orders, total) = await _orderRepository.ListByBuyerAsync(
                 _currentUser.BuyerId, statusFilter, request.Limit, request.Offset, ct);
 
-            return new PagedResult<OrderSummaryDto>(
-                orders.Select(OrdersMapper.ToSummaryDto).ToList(),
+            return new PagedResult<OrderResponseDto>(
+                orders.Select(OrdersMapper.ToResponseDto).ToList(),
                 total,
                 request.Limit,
                 request.Offset);

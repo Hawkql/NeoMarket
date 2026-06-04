@@ -9,6 +9,6 @@ using MediatR;
 namespace B2C.Application.Orders.Commands.TransitionOrderStatus
 {
     public sealed record TransitionOrderStatusCommand(
-       Guid OrderId,
-       OrderStatusDto TargetStatus) : IRequest<OrderDetailDto>;
+    Guid OrderId,
+    OrderStatusDto TargetStatus) : IRequest<OrderResponseDto>;
 }

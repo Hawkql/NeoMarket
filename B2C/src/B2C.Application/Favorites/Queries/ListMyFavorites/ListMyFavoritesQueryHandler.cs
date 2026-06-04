@@ -1,10 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
+using B2C.Application.Catalog.Dtos;
 using B2C.Application.Common.Abstractions;
-using B2C.Application.Favorites.Dtos;
+using B2C.Application.Common.Pagination;
 using B2C.Application.Integration;
 using B2C.Domain.Favorites;
 using MediatR;
@@ -13,20 +14,12 @@ using Microsoft.Extensions.Logging;
 namespace B2C.Application.Favorites.Queries.ListMyFavorites
 {
     /// <summary>
-    /// Шаги:
-    ///   1. Загрузить весь Favorite-агрегат (нужны AddedAt + ProductId).
-    ///   2. Извлечь список ProductId.
-    ///   3. Batch-запрос в B2B: GetProductsBatchAsync.
-    ///   4. Замапить в FavoriteListItemDto, объединив с AddedAt из Favorite.
-    /// 
-    /// КРИТИЧНО: товары могут быть НЕ найдены в B2B (удалены/заблокированы).
-    /// В этом случае B2B вернёт меньше items, чем было запрошено.
-    /// Наша политика: показываем только то, что вернул B2B. Удалённые товары
-    /// "выпадают" из списка избранного (но из БД не удаляются — это сделает
-    /// обработчик ProductDeleted, см. HandleProductDeletedCommandHandler).
+    /// openapi: возвращаем PaginatedCatalogProducts — тот же формат, что каталог.
+    /// AddedAt не отдаём (поля нет в CatalogProductCard).
+    /// Порядок: новые сверху (OrderByDescending CreatedAt) — куратор UX.
     /// </summary>
     public sealed class ListMyFavoritesQueryHandler
-        : IRequestHandler<ListMyFavoritesQuery, IReadOnlyList<FavoriteListItemDto>>
+        : IRequestHandler<ListMyFavoritesQuery, PagedResult<CatalogProductCardDto>>
     {
         private readonly IFavoriteRepository _favoriteRepository;
         private readonly IB2BCatalogClient _b2bCatalog;
@@ -45,35 +38,48 @@ namespace B2C.Application.Favorites.Queries.ListMyFavorites
             _logger = logger;
         }
 
-        public async Task<IReadOnlyList<FavoriteListItemDto>> Handle(
+        public async Task<PagedResult<CatalogProductCardDto>> Handle(
             ListMyFavoritesQuery request, CancellationToken ct)
         {
-            // Замечание: текущий IFavoriteRepository не возвращает Favorite целиком,
-            // только ProductIds. Чтобы получить AddedAt, нужен метод ListByBuyerAsync,
-            // возвращающий Favorite-агрегаты. Добавляю этот метод в порт ниже.
-            var favorites = await _favoriteRepository.ListByBuyerAsync(_currentUser.BuyerId, ct);
+            var buyerId = _currentUser.BuyerId;
 
-            if (favorites.Count == 0)
-                return Array.Empty<FavoriteListItemDto>();
+            // 1. Все Favorite покупателя (для total_count и сортировки).
+            var favorites = await _favoriteRepository.ListByBuyerAsync(buyerId, ct);
+            var totalCount = favorites.Count;
 
-            var productIds = favorites.Select(f => f.ProductId).ToList();
+            if (totalCount == 0)
+                return new PagedResult<CatalogProductCardDto>(
+                    Array.Empty<CatalogProductCardDto>(), 0, request.Limit, request.Offset);
+
+            // 2. Сортировка и пагинация — на нашей стороне (в БД нет JOIN с B2B).
+            var pageFavorites = favorites
+                .OrderByDescending(f => f.CreatedAt)
+                .Skip(request.Offset)
+                .Take(request.Limit)
+                .ToList();
+
+            if (pageFavorites.Count == 0)
+                return new PagedResult<CatalogProductCardDto>(
+                    Array.Empty<CatalogProductCardDto>(), totalCount, request.Limit, request.Offset);
+
+            // 3. Batch enrichment, маппинг в CatalogProductCardDto.
+            var productIds = pageFavorites.Select(f => f.ProductId).ToList();
             var products = await _b2bCatalog.GetProductsBatchAsync(productIds, ct);
-
-            // Индексируем продукты для O(1)-поиска при склейке с Favorite.AddedAt.
             var productsById = products.ToDictionary(p => p.Id);
 
-            var result = new List<FavoriteListItemDto>(favorites.Count);
-            foreach (var fav in favorites.OrderByDescending(f => f.CreatedAt))
+            var items = new List<CatalogProductCardDto>(pageFavorites.Count);
+            foreach (var fav in pageFavorites)
             {
                 if (productsById.TryGetValue(fav.ProductId, out var product))
-                    result.Add(FavoritesMapper.ToListItem(product, fav.CreatedAt));
+                    items.Add(CatalogMapper.ToCard(product));
                 else
                     _logger.LogWarning(
                         "Favorite {FavId} references product {ProductId} not found in B2B — skipping",
                         fav.Id, fav.ProductId);
             }
 
-            return result;
+            return new PagedResult<CatalogProductCardDto>(
+                items, totalCount, request.Limit, request.Offset);
         }
     }
 }

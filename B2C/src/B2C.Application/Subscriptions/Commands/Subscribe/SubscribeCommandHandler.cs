@@ -1,7 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using B2C.Application.Common.Abstractions;
 using B2C.Application.Integration;
@@ -13,11 +11,10 @@ using MediatR;
 namespace B2C.Application.Subscriptions.Commands.Subscribe
 {
     /// <summary>
-    /// US-CART-04 строгое:
-    ///   - Если баннер не существует → 400 BANNER_NOT_FOUND.
-    ///   - Иначе запись CTR-события через BannerEvent.Record + персист.
-    /// 
-    /// Write-only операция: ничего не возвращаем, контроллер отдаст 204.
+    /// openapi: POST /subscribe всегда 204 — upsert-семантика.
+    /// 1. Проверка существования товара в B2B (US-CART-02 acceptance).
+    /// 2. Если подписка уже есть — ChangeNotifyOn (перезаписываем), не бросаем 409.
+    /// 3. Иначе создаём новую.
     /// </summary>
     public sealed class SubscribeCommandHandler : IRequestHandler<SubscribeCommand>
     {
@@ -39,23 +36,28 @@ namespace B2C.Application.Subscriptions.Commands.Subscribe
         {
             var buyerId = _currentUser.BuyerId;
 
-            // 1. Проверка существования товара в B2B (US-CART-02 acceptance).
-            //    Batch на один ID — без отдельного метода ExistsAsync на клиенте.
+            // 1. Товар существует в B2B?
             var products = await _catalogClient.GetProductsBatchAsync(
                 new[] { request.ProductId }, ct);
-
             if (!products.Any(p => p.Id == request.ProductId))
                 throw new DomainException(
                     $"Product {request.ProductId} not found in catalog", "PRODUCT_NOT_FOUND");
 
-            // 2. Проверка дубля (US-CART-02 acceptance).
-            var existing = await _subscriptionRepository.GetAsync(buyerId, request.ProductId, ct);
-            if (existing is not null)
+            if (await _subscriptionRepository.GetAsync(buyerId, request.ProductId, ct) is not null)
                 throw new DomainException(
                     "Already subscribed to this product", "ALREADY_SUBSCRIBED");
 
-            // 3. Создание.
             var notifyOn = SubscriptionsMapper.ToDomain(request.NotifyOn);
+
+            // 2. Upsert: если есть — обновляем NotifyOn, не создаём дубль.
+            var existing = await _subscriptionRepository.GetAsync(buyerId, request.ProductId, ct);
+            if (existing is not null)
+            {
+                existing.ChangeNotifyOn(notifyOn);
+                return;
+            }
+
+            // 3. Создаём новую.
             var subscription = ProductSubscription.Create(buyerId, request.ProductId, notifyOn);
             await _subscriptionRepository.AddAsync(subscription, ct);
         }

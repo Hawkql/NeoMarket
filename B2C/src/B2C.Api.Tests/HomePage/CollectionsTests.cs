@@ -6,7 +6,6 @@ using B2C.Api.Tests.Infrastructure;
 using B2C.Application.Integration.Dtos;
 using B2C.Domain.HomePage;
 using B2C.Infrastructure.Persistence;
-
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,19 +25,25 @@ namespace B2C.Api.Tests.HomePage
         }
 
         /// <summary>
-        /// US-CART-05: список подборок БЕЗ товаров (только метаданные).
+        /// US-CART-05: openapi GET /api/v1/catalog/collections — каждая подборка
+        /// уже содержит обогащённый products (CatalogProductCard).
         /// </summary>
-        [Fact(DisplayName = "list_collections_returns_summary_without_products")]
-        public async Task list_collections_returns_active_with_metadata()
+        [Fact(DisplayName = "list_collections_returns_collections_with_products")]
+        public async Task list_collections_returns_active_with_products()
         {
             var product1 = Guid.NewGuid();
             var product2 = Guid.NewGuid();
+            _factory.CatalogFake.SeedProduct(new ProductSummary(
+                product1, "Product 1", null, 100_00, null, null, true, null, null));
+            _factory.CatalogFake.SeedProduct(new ProductSummary(
+                product2, "Product 2", null, 200_00, null, null, true, null, null));
+
             var collection = await SeedCollectionAsync(
                 slug: "hot-deals-test", title: "Хиты продаж",
                 productIds: new[] { product1, product2 });
 
             var client = _factory.CreateClient();
-            var resp = await client.GetAsync("/api/v1/home/collections");
+            var resp = await client.GetAsync("/api/v1/catalog/collections");
             var body = await resp.Content.ReadAsStringAsync();
             Console.WriteLine($">>> COLLECTIONS: {body}");
 
@@ -50,21 +55,19 @@ namespace B2C.Api.Tests.HomePage
                 if (item.GetProperty("id").GetGuid() == collection.Id)
                 {
                     found = true;
-                    item.GetProperty("title").GetString().Should().Be("Хиты продаж");
-                    item.GetProperty("product_count").GetInt32().Should().Be(2);
-                    // Товары в списке не выдаются — только summary.
-                    item.TryGetProperty("products", out _).Should().BeFalse();
+                    item.GetProperty("name").GetString().Should().Be("Хиты продаж");
+                    var products = item.GetProperty("products");
+                    products.GetArrayLength().Should().Be(2);
                 }
             }
             found.Should().BeTrue();
         }
 
         /// <summary>
-        /// US-CART-05: GET /home/collections/{slug} обогащает товары через B2B.
-        /// Порядок ProductIds сохраняется.
+        /// US-CART-05: порядок ProductIds внутри подборки сохраняется.
         /// </summary>
-        [Fact(DisplayName = "get_collection_enriches_and_preserves_order")]
-        public async Task get_collection_returns_products_in_seeded_order()
+        [Fact(DisplayName = "collection_products_preserve_seeded_order")]
+        public async Task collection_products_preserve_seeded_order()
         {
             var first = Guid.NewGuid();
             var second = Guid.NewGuid();
@@ -77,32 +80,36 @@ namespace B2C.Api.Tests.HomePage
             _factory.CatalogFake.SeedProduct(new ProductSummary(
                 third, "Third", null, 300_00, null, null, true, null, null));
 
-            await SeedCollectionAsync(
+            var collection = await SeedCollectionAsync(
                 slug: "ordered-test", title: "Ordered",
                 productIds: new[] { first, second, third });
 
             var client = _factory.CreateClient();
-            var resp = await client.GetAsync("/api/v1/home/collections/ordered-test");
+            var resp = await client.GetAsync("/api/v1/catalog/collections");
             var body = await resp.Content.ReadAsStringAsync();
-            Console.WriteLine($">>> COLLECTION DETAIL: {body}");
+            Console.WriteLine($">>> COLLECTION ORDER: {body}");
 
             resp.StatusCode.Should().Be(HttpStatusCode.OK);
 
-            var products = JsonDocument.Parse(body).RootElement.GetProperty("products");
-            products.GetArrayLength().Should().Be(3);
+            JsonElement? mine = null;
+            foreach (var item in JsonDocument.Parse(body).RootElement.EnumerateArray())
+                if (item.GetProperty("id").GetGuid() == collection.Id)
+                    mine = item;
 
-            // Порядок ProductIds сохранён.
+            mine.Should().NotBeNull();
+            var products = mine!.Value.GetProperty("products");
+            products.GetArrayLength().Should().Be(3);
             products[0].GetProperty("id").GetGuid().Should().Be(first);
             products[1].GetProperty("id").GetGuid().Should().Be(second);
             products[2].GetProperty("id").GetGuid().Should().Be(third);
         }
 
         /// <summary>
-        /// US-CART-05: удалённые в B2B товары не попадают в items
-        /// (как у Favorites — silent skip).
+        /// US-CART-05: удалённые в B2B товары просто не попадают в products.
+        /// (openapi не предусматривает поле unavailable_ids — silent skip.)
         /// </summary>
-        [Fact(DisplayName = "collection_unavailable_products_in_unavailable_ids")]
-        public async Task get_collection_returns_unavailable_ids_for_missing_products()
+        [Fact(DisplayName = "collection_skips_unavailable_products")]
+        public async Task collection_skips_products_missing_in_b2b()
         {
             var existing = Guid.NewGuid();
             var ghost = Guid.NewGuid();
@@ -111,35 +118,24 @@ namespace B2C.Api.Tests.HomePage
                 existing, "Existing", null, 100_00, null, null, true, null, null));
             // ghost НЕ в B2B — имитация удалённого/заблокированного.
 
-            await SeedCollectionAsync(
+            var collection = await SeedCollectionAsync(
                 slug: "with-missing-test", title: "Some",
                 productIds: new[] { existing, ghost });
 
             var client = _factory.CreateClient();
-            var resp = await client.GetAsync("/api/v1/home/collections/with-missing-test");
+            var resp = await client.GetAsync("/api/v1/catalog/collections");
             var body = await resp.Content.ReadAsStringAsync();
             Console.WriteLine($">>> COLLECTION WITH GHOST: {body}");
 
-            var root = JsonDocument.Parse(body).RootElement;
+            JsonElement? mine = null;
+            foreach (var item in JsonDocument.Parse(body).RootElement.EnumerateArray())
+                if (item.GetProperty("id").GetGuid() == collection.Id)
+                    mine = item;
 
-            // Живой товар — в products.
-            var products = root.GetProperty("products");
+            mine.Should().NotBeNull();
+            var products = mine!.Value.GetProperty("products");
             products.GetArrayLength().Should().Be(1);
             products[0].GetProperty("id").GetGuid().Should().Be(existing);
-
-            // Удалённый — в unavailable_ids.
-            var unavailable = root.GetProperty("unavailable_ids");
-            unavailable.GetArrayLength().Should().Be(1);
-            unavailable[0].GetGuid().Should().Be(ghost);
-        }
-
-        /// <summary>US-CART-05: несуществующая подборка → 404.</summary>
-        [Fact(DisplayName = "get_unknown_collection_returns_404")]
-        public async Task unknown_slug_returns_404()
-        {
-            var client = _factory.CreateClient();
-            var resp = await client.GetAsync("/api/v1/home/collections/non-existent-slug-xyz");
-            resp.StatusCode.Should().Be(HttpStatusCode.NotFound);
         }
 
         /// <summary>
@@ -162,6 +158,46 @@ namespace B2C.Api.Tests.HomePage
             db.Collections.Add(collection);
             await db.SaveChangesAsync();
             return collection;
+        }
+        /// <summary>
+        /// Расширение: GET /api/v1/catalog/collections/{id} — детальная коллекция.
+        /// Адресация по id согласно требованию ревьюера.
+        /// </summary>
+        [Fact(DisplayName = "get_collection_by_id_returns_enriched")]
+        public async Task get_collection_by_id_returns_products_in_order()
+        {
+            var first = Guid.NewGuid();
+            var second = Guid.NewGuid();
+            _factory.CatalogFake.SeedProduct(new ProductSummary(
+                first, "First", null, 100_00, null, null, true, null, null));
+            _factory.CatalogFake.SeedProduct(new ProductSummary(
+                second, "Second", null, 200_00, null, null, true, null, null));
+
+            var collection = await SeedCollectionAsync(
+                slug: "by-id-test", title: "By ID",
+                productIds: new[] { first, second });
+
+            var client = _factory.CreateClient();
+            var resp = await client.GetAsync($"/api/v1/catalog/collections/{collection.Id}");
+            var body = await resp.Content.ReadAsStringAsync();
+
+            resp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+            var root = JsonDocument.Parse(body).RootElement;
+            root.GetProperty("name").GetString().Should().Be("By ID");
+            var products = root.GetProperty("products");
+            products.GetArrayLength().Should().Be(2);
+            products[0].GetProperty("id").GetGuid().Should().Be(first);
+            products[1].GetProperty("id").GetGuid().Should().Be(second);
+        }
+
+        /// <summary>Несуществующая коллекция → 404.</summary>
+        [Fact(DisplayName = "get_unknown_collection_returns_404")]
+        public async Task get_unknown_collection_by_id_returns_404()
+        {
+            var client = _factory.CreateClient();
+            var resp = await client.GetAsync($"/api/v1/catalog/collections/{Guid.NewGuid()}");
+            resp.StatusCode.Should().Be(HttpStatusCode.NotFound);
         }
     }
 }

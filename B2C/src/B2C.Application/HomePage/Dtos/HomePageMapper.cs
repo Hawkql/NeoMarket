@@ -1,23 +1,17 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using B2C.Domain.HomePage;
+﻿using B2C.Domain.HomePage;
 
 namespace B2C.Application.HomePage.Dtos
 {
     internal static class HomePageMapper
     {
         public static BannerDto ToBannerDto(Banner b) =>
-            new(b.Id, b.Title, b.ImageUrl, b.LinkUrl, b.Priority);
-
-        public static CollectionSummaryDto ToCollectionSummary(Collection c) =>
-            new(c.Id,
-                c.Slug,
-                c.Title,
-                c.Description,
-                c.CoverImageUrl,
-                c.ProductIds.Count);
+            new(
+                Id: b.Id,
+                Title: b.Title,
+                ImageUrl: b.ImageUrl,
+                Link: b.LinkUrl,                  // domain: LinkUrl → openapi: link
+                Ordering: b.Priority,              // domain: Priority → openapi: ordering
+                ActiveFrom: b.StartsAt,            // domain: StartsAt → openapi: active_from
+                ActiveTo: b.EndsAt);               // domain: EndsAt   → openapi: active_to
     }
 }

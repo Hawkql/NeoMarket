@@ -15,11 +15,11 @@ namespace B2C.Api.Controllers
 {
     /// <summary>
     /// Корзина (US-CART-03). НЕ требует [Authorize]: работает для гостя (X-Session-Id)
-    /// и для авторизованного (JWT). Разрешение владельца корзины — в ICartContextResolver.
+    /// и для авторизованного (JWT). Разрешение владельца — в ICartContextResolver.
     /// 
-    /// Если запрос пришёл без JWT и без X-Session-Id — ICartContextResolver бросит
-    /// UNAUTHORIZED (→ 401). Это правильно: с корзиной нельзя работать анонимно
-    /// без хоть какого-то идентификатора.
+    /// openapi: все мутации (POST /items, PATCH /items/{sku_id}, DELETE /items/{sku_id})
+    /// возвращают 200 с обновлённой CartResponse — фронт получает свежее состояние одним
+    /// запросом, без отдельного GET.
     /// </summary>
     [ApiController]
     [Route("api/v1/cart")]
@@ -27,10 +27,9 @@ namespace B2C.Api.Controllers
     public sealed class CartController : ControllerBase
     {
         private readonly IMediator _mediator;
-
         public CartController(IMediator mediator) => _mediator = mediator;
 
-        /// <summary>Получить корзину с актуальными ценами из B2B (US-CART-03).</summary>
+        /// <summary>openapi: GET /api/v1/cart → CartResponse.</summary>
         [HttpGet]
         public async Task<IActionResult> GetCart(CancellationToken ct)
         {
@@ -38,33 +37,46 @@ namespace B2C.Api.Controllers
             return Ok(cart);
         }
 
-        /// <summary>Добавить SKU (идемпотентно — повтор увеличивает quantity).</summary>
+        /// <summary>
+        /// openapi: POST /api/v1/cart/items → 200 с обновлённой CartResponse.
+        /// Идемпотентно: повтор увеличивает quantity.
+        /// </summary>
         [HttpPost("items")]
         public async Task<IActionResult> AddItem(
             [FromBody] AddToCartRequest request, CancellationToken ct)
         {
             await _mediator.Send(new AddToCartCommand(request.SkuId, request.Quantity), ct);
-            return NoContent();
+            var cart = await _mediator.Send(new GetMyCartQuery(), ct);
+            return Ok(cart);
         }
 
-        /// <summary>Изменить количество позиции.</summary>
-        [HttpPut("items/{skuId:guid}")]
+        /// <summary>
+        /// openapi: PATCH /api/v1/cart/items/{sku_id} → 200 с CartResponse.
+        /// </summary>
+        [HttpPatch("items/{sku_id:guid}")]
         public async Task<IActionResult> UpdateItem(
-            Guid skuId, [FromBody] UpdateCartItemRequest request, CancellationToken ct)
+            [FromRoute(Name = "sku_id")] Guid skuId,
+            [FromBody] UpdateCartItemRequest request,
+            CancellationToken ct)
         {
             await _mediator.Send(new UpdateCartItemQuantityCommand(skuId, request.Quantity), ct);
-            return NoContent();
+            var cart = await _mediator.Send(new GetMyCartQuery(), ct);
+            return Ok(cart);
         }
 
-        /// <summary>Удалить позицию (идемпотентно).</summary>
-        [HttpDelete("items/{skuId:guid}")]
-        public async Task<IActionResult> RemoveItem(Guid skuId, CancellationToken ct)
+        /// <summary>
+        /// openapi: DELETE /api/v1/cart/items/{sku_id} → 200 с CartResponse (НЕ 204).
+        /// </summary>
+        [HttpDelete("items/{sku_id:guid}")]
+        public async Task<IActionResult> RemoveItem(
+            [FromRoute(Name = "sku_id")] Guid skuId, CancellationToken ct)
         {
             await _mediator.Send(new RemoveFromCartCommand(skuId), ct);
-            return NoContent();
+            var cart = await _mediator.Send(new GetMyCartQuery(), ct);
+            return Ok(cart);
         }
 
-        /// <summary>Очистить корзину (фронт вызывает после успешного checkout).</summary>
+        /// <summary>openapi: DELETE /api/v1/cart → 204.</summary>
         [HttpDelete]
         public async Task<IActionResult> ClearCart(CancellationToken ct)
         {

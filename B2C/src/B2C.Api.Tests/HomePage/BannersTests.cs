@@ -30,7 +30,7 @@ namespace B2C.Api.Tests.HomePage
         {
             var client = _factory.CreateClient();
 
-            var resp = await client.GetAsync("/api/v1/home/banners");
+            var resp = await client.GetAsync("/api/v1/catalog/banners");
             var body = await resp.Content.ReadAsStringAsync();
             Console.WriteLine($">>> BANNERS: {body}");
 

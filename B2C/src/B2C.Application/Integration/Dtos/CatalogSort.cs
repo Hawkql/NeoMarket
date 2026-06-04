@@ -1,19 +1,18 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace B2C.Application.Integration.Dtos
+﻿namespace B2C.Application.Integration.Dtos
 {
-    /// <summary>Сортировка каталога (US-CAT-01).</summary>
+    /// <summary>
+    /// Внутренний (B2B) контракт сортировки. Публичный API использует CatalogSortDto
+    /// (только Popularity/PriceAsc/PriceDesc/New по openapi). Здесь оставляем расширенный
+    /// набор для совместимости со старым B2B-протоколом.
+    /// </summary>
     public enum CatalogSort
     {
-        Rating = 0,          // default
-        Popularity = 1,
-        PriceAsc = 2,
-        PriceDesc = 3,
-        DateDesc = 4,
-        DiscountDesc = 5,
+        Popularity = 0,
+        PriceAsc = 1,
+        PriceDesc = 2,
+        New = 3,
+        Rating = 4,
+        DateDesc = 5,
+        DiscountDesc = 6,
     }
 }
