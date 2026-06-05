@@ -116,6 +116,7 @@ namespace B2B.Api.Tests.Moderation
                 event_type = "BLOCKED",
                 hard_block = false,
                 blocking_reason_id = SampleReasonId,
+                blocking_reason_title = "Нарушение правил",
                 moderator_comment = "коммент модератора",
                 field_reports = new[]
                 {
@@ -148,6 +149,7 @@ namespace B2B.Api.Tests.Moderation
                 event_type = "BLOCKED",
                 hard_block = true,
                 blocking_reason_id = SampleReasonId,
+                blocking_reason_title = "Грубое нарушение",
                 moderator_comment = "грубое нарушение",
                 occurred_at = DateTime.UtcNow
             };
@@ -170,6 +172,7 @@ namespace B2B.Api.Tests.Moderation
                 event_type = "BLOCKED",
                 hard_block = true,
                 blocking_reason_id = SampleReasonId,
+                blocking_reason_title = "Грубое нарушение",
                 moderator_comment = "x",
                 occurred_at = DateTime.UtcNow
             };

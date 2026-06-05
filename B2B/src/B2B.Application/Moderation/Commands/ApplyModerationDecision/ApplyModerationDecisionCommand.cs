@@ -8,8 +8,9 @@ namespace B2B.Application.Moderation.Commands.ApplyModerationDecision
         Guid IdempotencyKey,
         Guid ProductId,
         string EventType,                        // MODERATED | BLOCKED (по OpenAPI ModerationEventType)
-        bool HardBlock,                          // при BLOCKED: true → HARD_BLOCKED
+        bool HardBlock,
         Guid? BlockingReasonId,                  // обязательно при BLOCKED
+        string? BlockingReasonTitle,             // необязательное расширение: human-readable title причины
         string? ModeratorComment,
         Guid? ModeratorId,
         IReadOnlyList<FieldReportInputDto>? FieldReports,

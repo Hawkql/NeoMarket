@@ -51,7 +51,10 @@ namespace B2B.Application.Moderation.Commands.ApplyModerationDecision
             {
                 var reason = new BlockingReason(
                     reasonId: request.BlockingReasonId!.Value,
+                    title: request.BlockingReasonTitle,
                     comment: request.ModeratorComment);
+
+                
 
                 var reports = (request.FieldReports ?? Enumerable.Empty<FieldReportInputDto>())
                     .Select(fr => (

@@ -84,6 +84,7 @@ namespace B2B.Api.Tests.Products
         }
 
         // ── BLOCKED-товар показывает blocking_reason_id + moderator_comment + field_reports ──
+        // ── BLOCKED-товар показывает blocking_reason (объект) + field_reports ──
         [Fact(DisplayName = "get_blocked_product_returns_blocking_reason_and_field_reports")]
         public async Task get_blocked_product_returns_blocking_reason_and_field_reports()
         {
@@ -92,9 +93,8 @@ namespace B2B.Api.Tests.Products
             var productId = await CreateProductAsync(client);
             await CreateSkuAsync(client, productId);     // → OnModeration (нужно для Block)
 
-            // Блокируем напрямую через домен с полевым отчётом.
-            // По OpenAPI: причина — это id (uuid) + комментарий модератора (string).
-            // Title не хранится — Moderation-сервис владеет справочником.
+            // Блокируем напрямую через домен. BlockingReason: (id, title, comment).
+            var reasonId = Guid.NewGuid();
             using (var scope = _factory.Services.CreateScope())
             {
                 var db = scope.ServiceProvider.GetRequiredService<B2BDbContext>();
@@ -102,10 +102,10 @@ namespace B2B.Api.Tests.Products
                     .Include(p => p.FieldReports)
                     .FirstAsync(p => p.Id == productId);
                 product.Block(
-                    new BlockingReason(Guid.NewGuid(), "комментарий модератора"),
+                    new BlockingReason(reasonId, "Нарушение правил", "комментарий модератора"),
                     new List<(FieldReportTarget, Guid?, string)>
                     {
-                        (FieldReportTarget.Description, null, "Несоответствие описания")
+                (FieldReportTarget.Description, null, "Несоответствие описания")
                     },
                     new List<Guid>(),
                     DateTime.UtcNow);
@@ -120,14 +120,19 @@ namespace B2B.Api.Tests.Products
 
             root.GetProperty("status").GetString().Should().Be("BLOCKED");
 
-            // blocking_reason_id — uuid (по OpenAPI плоское поле, не объект)
-            var bri = root.GetProperty("blocking_reason_id");
-            bri.ValueKind.Should().Be(JsonValueKind.String);
-            Guid.TryParse(bri.GetString(), out _).Should().BeTrue();
+            // blocking_reason — вложенный объект {id, title, comment} по ProductDetailResponse
+            var br = root.GetProperty("blocking_reason");
+            br.ValueKind.Should().Be(JsonValueKind.Object);
 
-            // moderator_comment — строка
-            root.GetProperty("moderator_comment").GetString()
-                .Should().Be("комментарий модератора");
+            br.GetProperty("id").GetGuid().Should().Be(reasonId);
+            br.GetProperty("title").GetString().Should().Be("Нарушение правил");
+            br.GetProperty("comment").GetString().Should().Be("комментарий модератора");
+
+            // Плоских legacy-полей быть не должно
+            root.TryGetProperty("blocking_reason_id", out _).Should()
+                .BeFalse("ProductDetailResponse не содержит плоских legacy-полей");
+            root.TryGetProperty("moderator_comment", out _).Should()
+                .BeFalse("ProductDetailResponse не содержит плоских legacy-полей");
 
             // field_reports — непустой массив
             var reports = root.GetProperty("field_reports");

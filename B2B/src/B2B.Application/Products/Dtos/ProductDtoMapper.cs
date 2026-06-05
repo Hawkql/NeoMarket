@@ -43,11 +43,12 @@ namespace B2B.Application.Products.Dtos
                 CreatedAt: product.CreatedAt,
                 UpdatedAt: product.UpdatedAt,
                 Blocked: product.Blocked,
-                BlockingReason: product.BlockingReason is null
+               BlockingReason: product.BlockingReason is null
                     ? null
                     : new BlockingReasonDto(
                         product.BlockingReason.ReasonId,
-                        product.BlockingReason.Comment),
+                        product.BlockingReason.Title ?? string.Empty,
+                        product.BlockingReason.Comment ?? string.Empty),
                 FieldReports: product.FieldReports
                     .OrderBy(fr => fr.ReportedAt)
                     .Select(fr => new FieldReportDto(

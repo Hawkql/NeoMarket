@@ -44,6 +44,7 @@ namespace B2B.Api.Controllers
                 EventType: request.EventType,
                 HardBlock: request.HardBlock,
                 BlockingReasonId: request.BlockingReasonId,
+                BlockingReasonTitle: request.BlockingReasonTitle,
                 ModeratorComment: request.ModeratorComment,
                 ModeratorId: request.ModeratorId,
                 FieldReports: request.FieldReports,
