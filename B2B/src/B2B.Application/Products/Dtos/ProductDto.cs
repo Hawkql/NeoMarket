@@ -7,8 +7,7 @@ namespace B2B.Application.Products.Dtos
 {
     /// <summary>
     /// Seller-view detail карточки. Соответствует ProductDetailResponse в openapi.yaml.
-    /// blocking_reason — вложенный объект {id, comment}; title опущен (за сервисом
-    /// модерации, см. ADR DropBlockingReasonTitle).
+    /// blocking_reason — вложенный объект {id, title, comment} согласно схеме BlockingReason.
     /// </summary>
     public sealed record ProductDto(
        Guid Id,
@@ -25,11 +24,11 @@ namespace B2B.Application.Products.Dtos
        DateTime CreatedAt,
        DateTime UpdatedAt,
        bool Blocked,
-       BlockingReasonDto? BlockingReason,        // ← вложенный объект по ProductDetailResponse
+       BlockingReasonDto? BlockingReason,
        IReadOnlyList<FieldReportDto> FieldReports);
 
     public sealed record ImageDto(Guid Id, string Url, int Ordering);
     public sealed record CharacteristicDto(Guid Id, string Name, string Value);
-    public sealed record BlockingReasonDto(Guid Id, string? Comment);
+    public sealed record BlockingReasonDto(Guid Id, string Title, string Comment);
     public sealed record FieldReportDto(string FieldName, Guid? SkuId, string Comment);
 }

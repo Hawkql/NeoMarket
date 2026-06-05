@@ -88,7 +88,7 @@ namespace B2B.Api.Tests.PublicCatalog
             var db = scope.ServiceProvider.GetRequiredService<B2BDbContext>();
             var product = await db.Products.Include(p => p.FieldReports).FirstAsync(p => p.Id == productId);
             product.HardBlock(
-                new BlockingReason(Guid.NewGuid(), "x"),
+                new BlockingReason(Guid.NewGuid(), "Нарушение правил", "x"),
                 new List<(FieldReportTarget, Guid?, string)>(),
                 new List<Guid>(),
                 DateTime.UtcNow);
